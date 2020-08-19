@@ -11,7 +11,7 @@
  * process when initiating a new game session. For more information, see
  * [the Amazon GameLift Developer Guide](https://docs.aws.amazon.com/gamelift/latest/developerguide/gamelift-sdk-client-api.html#gamelift-sdk-client-api-create).
  */
-interface GameProperty {
+export interface GameProperty {
   /**
    * The game property identifier.
    */
@@ -33,7 +33,7 @@ interface GameProperty {
  * you can reuse idempotency token values after this time. Game session logs are
  * retained for 14 days.
  */
-interface GameSession {
+export interface GameSession {
   /**
    * Time stamp indicating when this data object was created. Format is a number
    * expressed in Unix time as milliseconds.

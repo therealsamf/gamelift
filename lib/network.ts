@@ -5,6 +5,8 @@
 import SocketIOClient from "socket.io-client";
 import _debug from "debug";
 
+import type { LogParameters } from "./types";
+
 const debug = _debug("gamelift.io:network");
 
 const LOCALHOST = "http://127.0.0.1:5757";
@@ -36,6 +38,7 @@ export class Network {
 
   /**
    * Connect to the Gamelift service.
+   *
    * @internal
    * @param socket
    */
@@ -54,6 +57,15 @@ export class Network {
         });
       }
     );
+  }
+
+  /**
+   * Retrieve the status of the socket's connection.
+   *
+   * @internal
+   */
+  public connected(): boolean {
+    return this.socket && this.socket.connected;
   }
 
   /**
@@ -151,6 +163,22 @@ export class Network {
     data: string,
     ack: (response: boolean) => void
   ): void {}
+
+  /**
+   * Send the given health status to the GameLift service.
+   *
+   * @internal
+   * @param healthy
+   */
+  public reportHealth(healthy: boolean): void {}
+
+  /**
+   * Send the message to the GameLift service that the process is ready for receiving
+   * a game session.
+   *
+   * @internal
+   */
+  public processReady(port: number, logParameters?: LogParameters): void {}
 
   private socket: SocketIOClient.Socket;
 }
