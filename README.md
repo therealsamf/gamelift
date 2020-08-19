@@ -1,2 +1,2 @@
-gamelift.js
+gamelift.io
 ===========

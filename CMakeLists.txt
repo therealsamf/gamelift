@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(gamelift.js)
+project(gamelift.io)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -28,13 +28,13 @@ if(NOT com_amazonaws_gamelift_POPULATED)
 endif()
 set(GAMELIFT_SOURCE_DIR ${com_amazonaws_gamelift_SOURCE_DIR} CACHE FILEPATH "Filepath to GameLift Server SDK zip file contents.")
 
-add_library(gamelift.js-pb STATIC)
-target_link_libraries(gamelift.js-pb PUBLIC libprotobuf)
-target_include_directories(gamelift.js-pb PUBLIC
+add_library(gamelift.io-pb STATIC)
+target_link_libraries(gamelift.io-pb PUBLIC libprotobuf)
+target_include_directories(gamelift.io-pb PUBLIC
     # ${PROTOBUF_SOURCE_DIR}/src
     ${GAMELIFT_SOURCE_DIR}/GameLift-SDK-Release-4.0.0/GameLift-Cpp-ServerSDK-3.4.0/gamelift-server-sdk/source/aws/gamelift/server/protocols
 )
-target_sources(gamelift.js-pb PRIVATE
+target_sources(gamelift.io-pb PRIVATE
     ${GAMELIFT_SOURCE_DIR}/GameLift-SDK-Release-4.0.0/GameLift-Cpp-ServerSDK-3.4.0/gamelift-server-sdk/source/aws/gamelift/server/protocols/sdk.pb.cc
 )
 
@@ -45,7 +45,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "gamelift")
 set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".node")
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC NAPI_VERSION=6)
-target_link_libraries(${PROJECT_NAME} PUBLIC gamelift.js-pb)
+target_link_libraries(${PROJECT_NAME} PUBLIC gamelift.io-pb)
 
 # Include N-API wrappers
 execute_process(COMMAND node -p "require('node-addon-api').include"
