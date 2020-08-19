@@ -1,47 +1,142 @@
+import _debug from "debug";
+import SocketIOClient from "socket.io-client";
 
-import SocketIOClient from 'socket.io-client';
+import { Network } from "./network";
 
-class InitSdkOutcome {
+const debug = _debug("gamelift.io:index");
 
+/**
+ * Error class meant to show the caller the API hasn't been initialized.
+ * @internal
+ */
+class NotInitializedError extends Error {
+  /**
+   * Construct the NotInitializedError instance.
+   *
+   * Passes a pre-determined message back to the superclass
+   * [`Error`](https://nodejs.org/api/errors.html#errors_class_error).
+   *
+   * @internal
+   */
+  constructor() {
+    super("GameLift API has not been initialized");
+  }
 }
 
+/**
+ * Error class meant to show the caller the API has already been initialized.
+ * @internal
+ */
+class AlreadyInitializedError extends Error {
+  /**
+   * Construct the AlreadyInitializedError instance.
+   *
+   * Passes a pre-determined message back to the superclass
+   * [`Error`](https://nodejs.org/api/errors.html#errors_class_error).
+   *
+   * @internal
+   */
+  constructor() {
+    super("GameLift API has already been initialized");
+  }
+}
+
+/**
+ * Common state methods for GameLift Server SDK state.
+ *
+ * @internal
+ */
 class GameLiftCommonState {
+  /**
+   * Retrieve the singleton server state instance.
+   *
+   * @internal
+   */
   public static getInstance(): GameLiftCommonState {
     if (!GameLiftCommonState.instance) {
-
+      throw new NotInitializedError();
     }
     return GameLiftCommonState.instance;
   }
+
+  /**
+   * Set the singleton server state instance.
+   *
+   * @internal
+   * @param instance
+   */
   public static setInstance(instance: GameLiftCommonState): void {
+    if (GameLiftCommonState.instance) {
+      throw new AlreadyInitializedError();
+    }
     GameLiftCommonState.instance = instance;
   }
 
+  /**
+   * Singleton server state instance.
+   *
+   * @internal
+   */
   private static instance: GameLiftCommonState;
 }
 
+/**
+ * GameLift Server SDK state.
+ *
+ * @internal
+ */
 class GameLiftServerState extends GameLiftCommonState {
+  /**
+   * Constant string representing the location of the proxy which forwards requests to
+   * the GameLift API service.
+   *
+   * @internal
+   */
   public static LOCALHOST: string = "http://127.0.0.1:5757";
 
-  public static createInstance(): InitSdkOutcome {
+  /**
+   * Create the Server state instance and set it as the singleton for the application.
+   *
+   * @internal
+   */
+  public static createInstance(): GameLiftServerState {
+    let instance;
+    try {
+      instance = GameLiftServerState.getInstance();
+    } catch (error) {
+      // If we got some other error then re-throw
+      if (!(error instanceof NotInitializedError)) {
+        throw error;
+      }
+    }
+    if (instance) {
+      throw new AlreadyInitializedError();
+    }
+
     const newState = new GameLiftServerState();
+    this.setInstance(newState);
 
-    return new InitSdkOutcome();
+    return newState;
   }
 
-  public acceptPlayerSession(playerSessionId: string): void {
+  public acceptPlayerSession(playerSessionId: string): void {}
 
+  /**
+   * Initialize the internal networking interface.
+   *
+   * @internal
+   */
+  public async initializeNetworking(): Promise<void> {
+    debug("initializing networking");
+    const socket = SocketIOClient(GameLiftServerState.LOCALHOST, {
+      autoConnect: false,
+    });
+
+    this.networking = new Network(socket);
+    await this.networking.performConnect(socket);
   }
 
-  public initializeNetworking(): void {
-    this.socket = SocketIOClient(GameLiftServerState.LOCALHOST);
-  }
-
-  private socket: SocketIOClient.Socket;
-
-}
-
-class NotInitializedError extends Error {
-
+  private networking: Network;
 }
 
 /**
@@ -74,9 +169,7 @@ export function acceptPlayerSession(playerSessionId: string) {
  * This action should be called as part of the onStartGameSession() callback function,
  * after all game session initialization has been completed.
  */
-export function activateGameSession() {
-
-}
+export function activateGameSession() {}
 
 /**
  * This data type is used to specify which player session(s) to retrieve. You can use
@@ -118,48 +211,36 @@ interface DescribePlayerSessionsRequest {
  * player ID.
  *
  */
-export function describePlayerSessions() {
+export function describePlayerSessions() {}
+export function getGameSessionId() {}
+export function getInstanceCertificate() {}
+export function getSdkVersion() {}
+export const getSDKVersion = getSdkVersion;
+export function getTerminationTime() {}
 
-}
-export function getGameSessionId() {
+/**
+ * Initializes the GameLift SDK.
+ *
+ * This method should be called on launch, before any other GameLift-related
+ * initialization occurs.
+ */
+export async function initSdk(): Promise<void> {
+  debug("initializing SDK");
+  const serverState = GameLiftServerState.createInstance();
 
+  await serverState.initializeNetworking();
 }
-export function getInstanceCertificate() {
 
-}
-export function getSdkVersion() {
-
-}
-export const getSDKVersion =getSdkVersion;
-export function getTerminationTime() {
-
-}
-export function initSdk() {
-
-}
+/**
+ * See {@link initSdk}.
+ */
 export const initSDK = initSdk;
 
-export function processEnding() {
-
-}
-export function processReady() {
-
-}
-export function processReadyAsync() {
-
-}
-export function removePlayerSession() {
-
-}
-export function startMatchBackfill() {
-
-}
-export function stopMatchBackfill() {
-
-}
-export function terminateGameSession() {
-
-}
-export function updatePlayerSessionCreationPolicy() {
-
-}
+export function processEnding() {}
+export function processReady() {}
+export function processReadyAsync() {}
+export function removePlayerSession() {}
+export function startMatchBackfill() {}
+export function stopMatchBackfill() {}
+export function terminateGameSession() {}
+export function updatePlayerSessionCreationPolicy() {}
