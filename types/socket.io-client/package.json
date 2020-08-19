@@ -1,0 +1,28 @@
+{
+  "name": "@types/socket.io-client",
+  "version": "1.4.33",
+  "description": "TypeScript definitions for socket.io-client",
+  "license": "MIT",
+  "contributors": [
+    "PROGRE (https://github.com/progre)",
+    "Damian Connolly (https://github.com/divillysausages)",
+    "Florent Poujol (https://github.com/florentpoujol)"
+  ],
+  "main": "index.js",
+  "types": "index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+    "directory": "types/socket.io-client"
+  },
+  "scripts": {},
+  "dependencies": {},
+  "typesPublisherContentHash": "4be759addfbc8291fe6d85336568dbc61d81e521bd2925a18fc37237065238f9",
+  "typeScriptVersion": "3.0",
+  "bugs": {
+    "url": "https://github.com/DefinitelyTyped/DefinitelyTyped/issues"
+  },
+  "homepage": "https://github.com/DefinitelyTyped/DefinitelyTyped#readme",
+  "keywords": [],
+  "author": ""
+}

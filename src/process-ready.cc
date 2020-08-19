@@ -23,33 +23,3 @@ Napi::Object ProcessReady::Init(Napi::Env env, Napi::Object exports) {
 ProcessReady::ProcessReady(const Napi::CallbackInfo& info)
     : Napi::ObjectWrap<ProcessReady>(info), process_ready_() {
 }
-
-Napi::Value ProcessReady::Verify(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    return env.Null();
-}
-
-Napi::Value ProcessReady::Encode(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    return env.Null();
-}
-
-Napi::Value ProcessReady::Decode(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    return env.Null();
-}
-
-Napi::Value ProcessReady::Create(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    return env.Null();
-}
-
-Napi::Value ProcessReady::FromObject(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    return env.Null();
-}
-
-Napi::Value ProcessReady::ToObject(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    return env.Null();
-}

@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "experimentalDecorators": true,
+        "outDir": "./bin",
+        "rootDir": "./lib",
+        "lib": ["esnext"],
+        "target": "es6",
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "noImplicitAny": false,
+        "module": "system",
+        "noEmit": false,
+        "declaration": true,
+        "emitDecoratorMetadata": true,
+        "moduleResolution": "node",
+        "typeRoots": [
+            "./node_modules/@types",
+            "./types/",
+        ]
+    }
+}

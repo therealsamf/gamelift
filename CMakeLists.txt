@@ -63,5 +63,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${NODE_ADDON_API_DIR})
 
 target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gamelift.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/process-ready.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/accept-player-session.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/network.cc
 )
