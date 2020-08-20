@@ -18,6 +18,9 @@ private:
 
     Napi::Value GetLogPathsToUpload(const Napi::CallbackInfo& info);
     void SetLogPathsToUpload(const Napi::CallbackInfo& info, const Napi::Value& value);
+
+    Napi::Value ToString(const Napi::CallbackInfo& info);
+    Napi::Value FromString(const Napi::CallbackInfo& info);
 };
 
 #endif // GAMELIFT_JS_PROCESS_READY_H

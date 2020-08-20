@@ -10,10 +10,10 @@ FetchContent_Declare(com_github_protocolbuffers_protobuf
     URL_HASH SHA256=c895ad9fd792532f233ced36969d9cc4daec5cb7de9db0d9b26cf06ccd0183c1
 )
 FetchContent_GetProperties(com_github_protocolbuffers_protobuf)
+set(protobuf_BUILD_TESTS FALSE)
 if(NOT com_github_protocolbuffers_protobuf_POPULATED)
     FetchContent_Populate(com_github_protocolbuffers_protobuf)
 
-    set(protobuf_BUILD_TESTS FALSE)
     add_subdirectory(${com_github_protocolbuffers_protobuf_SOURCE_DIR}/cmake)
 endif()
 set(PROTOBUF_SOURCE_DIR ${com_github_protocolbuffers_protobuf_SOURCE_DIR} CACHE FILEPATH "Filepath to Protocol Buffer repository archive contents.")
@@ -64,5 +64,5 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${NODE_ADDON_API_DIR})
 target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gamelift.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/accept-player-session.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/network.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/process-ready.cc
 )

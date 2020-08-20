@@ -1,5 +1,5 @@
 /**
- * Model for a game session
+ * @fileoverview Model for a game session
  */
 
 /**

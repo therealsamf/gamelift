@@ -2,14 +2,46 @@
  * Interface to communication with the GameLift service.
  */
 
+import type gamelift from "gamelift";
+import bindings from "bindings";
 import SocketIOClient from "socket.io-client";
 import _debug from "debug";
 
-import type { LogParameters } from "./types";
+import type { GameSession } from "./game-session";
+import type { LogParameters, UpdateGameSession } from "./types";
 
 const debug = _debug("gamelift.io:network");
+const _gamelift = bindings("gamelift.node");
 
-const LOCALHOST = "http://127.0.0.1:5757";
+const NOOP = () => {};
+
+class ServiceCallFailedError extends Error {
+  constructor() {
+    super("GameLift service call failed");
+  }
+}
+
+/**
+ * Type alias for socket.io ACK function
+ *
+ * @internal
+ */
+export type Ack = (response: boolean) => void;
+
+/**
+ * Interface describing the handlers required for specific events from the GameLift
+ * service.
+ *
+ * @internal
+ */
+export interface HandlerFunctions {
+  onStartGameSessionHandler: (gameSession: GameSession, ack: Ack) => void;
+  onUpdateGameSessionHandler: (
+    updateGameSession: UpdateGameSession,
+    ack: Ack
+  ) => void;
+  onTerminateSessionHandler: (terminationTime: number) => void;
+}
 
 /**
  * Interface class for communicating with the Gamelift service
@@ -24,14 +56,23 @@ export class Network {
   static RECONNECT_ATTEMPTS: number = 3;
 
   /**
+   * Internal reference to the object with the handler functions for specific GameLift
+   * service messages.
+   *
+   * @internal
+   */
+  private handler: HandlerFunctions;
+
+  /**
    * Construct Network object.
    *
    * Configures & connects the two given sockets for communcation with Gamelift.
    * @internal
    * @param inSocket
    */
-  public constructor(socket: SocketIOClient.Socket) {
+  public constructor(socket: SocketIOClient.Socket, handler: HandlerFunctions) {
     this.socket = socket;
+    this.handler = handler;
 
     this.configureClient(this.socket);
   }
@@ -117,16 +158,34 @@ export class Network {
    * handler.
    *
    * @internal
-   * @param _name Unused name parameter.
    * @param data Raw data received from the socket.io client.
    * @param ack ACK function for alerting the GameLift service whether creation was
    *   successful.
    */
-  private onStartGameSession(
-    _name: string,
-    data: string,
-    ack: (response: boolean) => void
-  ): void {}
+  private onStartGameSession(data: string, ack?: Ack): void {
+    debug("socket received 'OnStartGameSession' event");
+    const onStartGameSessionMessage: gamelift.OnStartGameSession = new _gamelift.OnStartGameSession();
+
+    let success = false;
+    try {
+      success = onStartGameSessionMessage.fromString(data);
+    } catch (error) {
+      debug(
+        "error occurred while attempting to parse 'OnStartGameSession' event message"
+      );
+      return;
+    }
+
+    if (!success) {
+      debug("failed to parse 'OnStartGameSession' event message data");
+      return;
+    }
+
+    const gameSession = onStartGameSessionMessage.gameSession;
+
+    let _ack: Ack = ack || NOOP;
+    this.handler.onStartGameSessionHandler(gameSession, _ack);
+  }
 
   /**
    * Handle the "UpdateGameSession" event from the GameLift service.
@@ -178,7 +237,34 @@ export class Network {
    *
    * @internal
    */
-  public processReady(port: number, logParameters?: LogParameters): void {}
+  public async processReady(
+    port: number,
+    logParameters?: LogParameters
+  ): Promise<void> {
+    const processReadyMessage: gamelift.ProcessReady = new _gamelift.ProcessReady();
+    processReadyMessage.port = port;
+
+    if (logParameters) {
+      processReadyMessage.logPathsToUpload = logParameters.logPaths || [];
+    }
+
+    const self = this;
+    await new Promise(
+      (resolve: () => void, reject: (error?: Error) => void): void => {
+        self.socket.emit(
+          "ProcessReady",
+          processReadyMessage.toString(),
+          (response: boolean): void => {
+            if (!response) {
+              reject(new ServiceCallFailedError());
+            } else {
+              resolve();
+            }
+          }
+        );
+      }
+    );
+  }
 
   private socket: SocketIOClient.Socket;
 }

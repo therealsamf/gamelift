@@ -1,10 +1,11 @@
 import _debug from "debug";
 import SocketIOClient from "socket.io-client";
 
-import { Network } from "./network";
+import { Network, Ack } from "./network";
 import type { GameSession } from "./game-session";
 import type { LogParameters } from "./types";
 import type { UpdateGameSession } from "./update-game-session";
+import { Http2ServerResponse } from "http2";
 
 const debug = _debug("gamelift.io:index");
 
@@ -125,13 +126,22 @@ class GameLiftServerState extends GameLiftCommonState {
   public static HEALTHCHECK_TIMEOUT_SECONDS: number = 60;
 
   /**
+   * Identifier of the game session this process is currently running.
+   *
+   * @internal
+   */
+  private gameSessionId: string;
+
+  /**
    * Notifies the GameLift service that the process is ready to receive game sessions
    * after setting up the necessary callbacks.
    *
    * @internal
    * @param processParameters
    */
-  public processReady(processParameters: ProcessParameters): void {
+  public async processReady(
+    processParameters: ProcessParameters
+  ): Promise<void> {
     debug("readying the server state");
     this.processReadyFlag = true;
 
@@ -146,10 +156,11 @@ class GameLiftServerState extends GameLiftCommonState {
       throw new GameLiftServerNotInitializedError();
     }
 
-    this.networking.processReady(
+    await this.networking.processReady(
       processParameters.port,
       processParameters.logParameters
     );
+
     this.healthCheck();
   }
 
@@ -185,10 +196,14 @@ class GameLiftServerState extends GameLiftCommonState {
    * @internal
    */
   public healthCheck(): void {
-    this._healthcheckTimeout = setInterval(
-      this.reportHealth,
-      GameLiftServerState.HEALTHCHECK_TIMEOUT_SECONDS
-    );
+    const self = this;
+    this._healthcheckTimeout = setInterval(async function () {
+      if (self.processReadyFlag) {
+        await self.reportHealth();
+      } else {
+        clearInterval(self._healthcheckTimeout);
+      }
+    }, GameLiftServerState.HEALTHCHECK_TIMEOUT_SECONDS);
   }
 
   /**
@@ -198,8 +213,21 @@ class GameLiftServerState extends GameLiftCommonState {
    * @internal
    */
   public reportHealth(): void {
-    const healthy = this.onHealthCheck();
-    this.networking.reportHealth(healthy);
+    // Create a timer promise that will timeout and send an unhealthy status if it
+    // beats the actual health check.
+    const timerPromise = new Promise<boolean>((resolve: () => void): void => {
+      setTimeout(
+        resolve.bind({}, false),
+        GameLiftServerState.HEALTHCHECK_TIMEOUT_SECONDS
+      );
+    });
+
+    debug("running health check");
+    Promise.race<Promise<boolean>>([this.onHealthCheck(), timerPromise])
+      .then(this.networking.reportHealth)
+      .catch((error?: Error): void => {
+        // log error
+      });
   }
 
   public acceptPlayerSession(playerSessionId: string): void {}
@@ -215,7 +243,7 @@ class GameLiftServerState extends GameLiftCommonState {
       autoConnect: false,
     });
 
-    this.networking = new Network(socket);
+    this.networking = new Network(socket, this);
     await this.networking.performConnect(socket);
   }
 
@@ -224,7 +252,7 @@ class GameLiftServerState extends GameLiftCommonState {
    *
    * @internal
    */
-  public defaultHealthCheck(): boolean {
+  public async defaultHealthCheck(): Promise<boolean> {
     return true;
   }
 
@@ -250,11 +278,36 @@ class GameLiftServerState extends GameLiftCommonState {
   private onStartGameSession: OnStartGameSessionCallback;
 
   /**
+   * Internal listener for the "OnStartGameSessionEvent".
+   *
+   * Performs some error checking before calling the user-defined handler for the
+   * event.
+   * @param gameSession
+   * @param ack
+   */
+  public onStartGameSessionHandler(gameSession: GameSession, ack: Ack) {
+    if (!this.processReadyFlag) {
+      ack(false);
+    }
+
+    this.gameSessionId = gameSession.gameSessionId;
+    debug(
+      "processing 'OnStartGameSession' event for session '%s'",
+      this.gameSessionId
+    );
+
+    this.onStartGameSession(gameSession);
+    ack(true);
+  }
+
+  /**
    * Reference to the user-defined callback for the "OnUpdateGameSession" event.
    *
    * @internal
    */
   private onUpdateGameSession?: OnUpdateGameSessionCallback;
+
+  public onUpdateGameSessionHandler() {}
 
   /**
    * Reference to the user-defined callback for the "OnProcessTerminate" event.
@@ -262,6 +315,8 @@ class GameLiftServerState extends GameLiftCommonState {
    * @internal
    */
   private onProcessTerminate?: OnProcessTerminateCallback;
+
+  public onTerminateSessionHandler() {}
 
   /**
    * Reference to the callback for the "OnHealthCheck" event.
@@ -306,7 +361,8 @@ class GameLiftServerState extends GameLiftCommonState {
  * status of the player slot from RESERVED to ACTIVE.
  *
  * @param playerSessionId Unique ID issued by the Amazon GameLift service in response
- *   to a call to the AWS SDK Amazon GameLift API action [CreatePlayerSession](https://docs.aws.amazon.com/gamelift/latest/apireference/API_CreatePlayerSession.html).
+ *   to a call to the AWS SDK Amazon GameLift API action
+ *   [CreatePlayerSession](https://docs.aws.amazon.com/gamelift/latest/apireference/API_CreatePlayerSession.html).
  *   The game client references this ID when connecting to the server process.
  *
  */
@@ -415,7 +471,7 @@ type OnProcessTerminateCallback = () => void;
  *
  * @internal
  */
-type OnHealthCheckCallback = () => boolean;
+type OnHealthCheckCallback = () => Promise<boolean>;
 
 /**
  * Callback used for the "OnUpdateGameSession" event.
@@ -487,16 +543,18 @@ interface ProcessParameters {
  * Notifies the GameLift service that the server process is ready to host game
  * sessions.
  *
- * This method should be called after successfully invoking {@link initSDK()} and
+ * This method should be called after successfully invoking {@link initSdk()} and
  * completing any setup tasks required before the server process can host a game
  * session.
  *
  * @param processParameters
  */
-export function processReady(processParameters: ProcessParameters): void {
+export async function processReady(
+  processParameters: ProcessParameters
+): Promise<void> {
   const serverInstance = GameLiftCommonState.getInstance() as GameLiftServerState;
 
-  serverInstance.processReady(processParameters);
+  await serverInstance.processReady(processParameters);
 }
 export function processReadyAsync() {}
 export function removePlayerSession() {}

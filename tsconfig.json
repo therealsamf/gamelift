@@ -1,14 +1,14 @@
 {
     "compilerOptions": {
         "experimentalDecorators": true,
-        "outDir": "./bin",
+        "outDir": "./dist",
         "rootDir": "./lib",
         "lib": ["esnext"],
         "target": "es6",
         "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
         "noImplicitAny": false,
-        "module": "system",
+        "module": "CommonJS",
         "noEmit": false,
         "declaration": true,
         "emitDecoratorMetadata": true,
