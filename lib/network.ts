@@ -212,13 +212,11 @@ export class Network {
    * user-defined handler.
    *
    * @internal
-   * @param _name Unused name parameter.
    * @param data Raw data received from the socket.io client.
    * @param ack ACK function for alerting the GameLift service whether creation was
    *   successful.
    */
   private onTerminateProcess(
-    _name: string,
     data: string,
     ack: (response: boolean) => void
   ): void {}
@@ -236,6 +234,10 @@ export class Network {
    * a game session.
    *
    * @internal
+   * @param port Port number that informs the GameLift service which port it should be
+   *   telling clients to connect to.
+   * @param logParameters Log parameter object that allows the developer to determine
+   *   which files the GameLift service preserves after the process has been destroyed.
    */
   public async processReady(
     port: number,
@@ -248,12 +250,27 @@ export class Network {
       processReadyMessage.logPathsToUpload = logParameters.logPaths || [];
     }
 
+    await this.emit("ProcessReady", processReadyMessage);
+  }
+
+  /**
+   * Use the socket to the message to the GameLift service.
+   *
+   * @internal
+   * @param eventName Name of the event that's being emitted.
+   * @param message Procotol Buffer object that's serialized and sent as data.
+   */
+  public async emit(
+    eventName: string,
+    message: gamelift.Message
+  ): Promise<void> {
+    debug("sending '%s' emit to GameLift", eventName);
     const self = this;
     await new Promise(
       (resolve: () => void, reject: (error?: Error) => void): void => {
         self.socket.emit(
-          "ProcessReady",
-          processReadyMessage.toString(),
+          eventName,
+          message.toString(),
           (response: boolean): void => {
             if (!response) {
               reject(new ServiceCallFailedError());
