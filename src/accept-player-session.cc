@@ -23,9 +23,16 @@ AcceptPlayerSession::AcceptPlayerSession(const Napi::CallbackInfo& info)
 }
 
 Napi::Value AcceptPlayerSession::GetPlayerSessionId(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
     const std::string& player_session_id = accept_player_session_.playersessionid();
 
-    return Napi::String::New(info.Env(), player_session_id);
+    const Napi::Value& return_value = Napi::String::New(info.Env(), player_session_id);
+    if (env.IsExceptionPending()) {
+        env.GetAndClearPendingException().ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    return return_value;
 }
 
 void AcceptPlayerSession::SetPlayerSessionId(const Napi::CallbackInfo& info, const Napi::Value& value) {

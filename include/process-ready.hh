@@ -4,23 +4,18 @@
 #include <napi.h>
 #include <sdk.pb.h>
 
+#include "wrapped-message.hh"
+
 using namespace com::amazon::whitewater::auxproxy;
 
-class ProcessReady : public Napi::ObjectWrap<ProcessReady> {
+class ProcessReady : public WrappedMessage<ProcessReady, pbuffer::ProcessReady> {
 public:
     static Napi::Object Init(Napi::Env env, Napi::Object exports);
     ProcessReady(const Napi::CallbackInfo& info);
 private:
-    pbuffer::ProcessReady process_ready_;
-
-    Napi::Value GetPort(const Napi::CallbackInfo& info);
-    void SetPort(const Napi::CallbackInfo& info, const Napi::Value& value);
-
     Napi::Value GetLogPathsToUpload(const Napi::CallbackInfo& info);
     void SetLogPathsToUpload(const Napi::CallbackInfo& info, const Napi::Value& value);
 
-    Napi::Value ToString(const Napi::CallbackInfo& info);
-    Napi::Value FromString(const Napi::CallbackInfo& info);
 };
 
 #endif // GAMELIFT_JS_PROCESS_READY_H

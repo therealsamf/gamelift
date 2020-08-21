@@ -5,45 +5,38 @@
 #include <vector>
 
 #include <google/protobuf/repeated_field.h>
+#include <sdk.pb.h>
+
+using namespace com::amazon::whitewater::auxproxy;
+using Message = WrappedMessage<ProcessReady, pbuffer::ProcessReady>;
 
 Napi::Object ProcessReady::Init(Napi::Env env, Napi::Object exports) {
     Napi::Function func = DefineClass(env, "ProcessReady", {
-        InstanceAccessor("port", &ProcessReady::GetPort, &ProcessReady::SetPort),
+        InstanceAccessor(
+            "port",
+            &Message::GetValue<int, &pbuffer::ProcessReady::port>,
+            &Message::SetValue<int, &pbuffer::ProcessReady::set_port>
+        ),
         InstanceAccessor("logPathsToUpload", &ProcessReady::GetLogPathsToUpload, &ProcessReady::SetLogPathsToUpload),
-        InstanceMethod("toString", &ProcessReady::ToString),
-        InstanceMethod("fromString", &ProcessReady::FromString),
+        InstanceMethod("toString", &Message::ToString),
+        InstanceMethod("fromString", &Message::FromString),
     });
 
     Napi::FunctionReference* constructor = new Napi::FunctionReference();
     *constructor = Napi::Persistent(func);
     env.SetInstanceData(constructor);
 
-
     exports.Set("ProcessReady", func);
     return exports;
 }
 
 ProcessReady::ProcessReady(const Napi::CallbackInfo& info)
-    : Napi::ObjectWrap<ProcessReady>(info), process_ready_() {
+    : Message(info, std::make_shared<pbuffer::ProcessReady>()) {
 }
-
-Napi::Value ProcessReady::GetPort(const Napi::CallbackInfo& info) {
-    const int& port = process_ready_.port();
-
-    return Napi::Number::New(info.Env(), port);
-}
-
-void ProcessReady::SetPort(const Napi::CallbackInfo& info, const Napi::Value& value) {
-    if (!value.IsNumber()) {
-        Napi::TypeError::New(info.Env(), "Integer expected").ThrowAsJavaScriptException();
-    }
-
-    Napi::Number port_value = value.As<Napi::Number>();
-    process_ready_.set_port(port_value.Int32Value());
-}
-
 
 Napi::Value ProcessReady::GetLogPathsToUpload(const Napi::CallbackInfo& info) {
+    auto process_ready_ = GetMessagePtr();
+
     Napi::Env env = info.Env();
     Napi::Array log_paths_to_upload_array = Napi::Array::New(env);
     if (env.IsExceptionPending()) {
@@ -51,7 +44,7 @@ Napi::Value ProcessReady::GetLogPathsToUpload(const Napi::CallbackInfo& info) {
         return env.Undefined();
     }
 
-    const google::protobuf::RepeatedPtrField<std::string>& log_paths = process_ready_.logpathstoupload();
+    const google::protobuf::RepeatedPtrField<std::string>& log_paths = process_ready_->logpathstoupload();
     google::protobuf::RepeatedPtrField<std::string>::const_iterator it = log_paths.begin();
 
     unsigned int index = 0;
@@ -75,10 +68,13 @@ Napi::Value ProcessReady::GetLogPathsToUpload(const Napi::CallbackInfo& info) {
 }
 
 void ProcessReady::SetLogPathsToUpload(const Napi::CallbackInfo& info, const Napi::Value& value) {
+    auto process_ready_ = GetMessagePtr();
+
     Napi::Env env = info.Env();
 
     if (!value.IsObject()) {
         Napi::TypeError::New(env, "Object expected").ThrowAsJavaScriptException();
+        return;
     }
     const Napi::Array& array = value.As<Napi::Array>();
 
@@ -102,39 +98,8 @@ void ProcessReady::SetLogPathsToUpload(const Napi::CallbackInfo& info, const Nap
 
     // Only after successfully grabbing every value off of the array do we clear the
     // internal value
-    process_ready_.clear_logpathstoupload();
+    process_ready_->clear_logpathstoupload();
     for (std::vector<std::string>::iterator it = log_paths.begin(); it != log_paths.end(); ++it) {
-        process_ready_.add_logpathstoupload(*it);
+        process_ready_->add_logpathstoupload(*it);
     }
-}
-
-Napi::Value ProcessReady::ToString(const Napi::CallbackInfo& info) {
-    const std::string& process_ready_string = process_ready_.SerializeAsString();
-    Napi::String process_ready = Napi::String::New(info.Env(), process_ready_string);
-
-    if (info.Env().IsExceptionPending()) {
-        info.Env().GetAndClearPendingException().ThrowAsJavaScriptException();
-        return info.Env().Undefined();
-    }
-
-    return process_ready;
-}
-
-Napi::Value ProcessReady::FromString(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-
-    if (info.Length() < 1 || !info[0].IsString()) {
-        Napi::TypeError::New(env, "String expected").ThrowAsJavaScriptException();
-        return env.Undefined();
-    }
-
-    const std::string& input_string = info[0].As<Napi::String>().Utf8Value();
-    bool success = process_ready_.ParseFromString(input_string);
-
-    if (!success) {
-        Napi::Error::New(env, "Malformed message").ThrowAsJavaScriptException();
-        return Napi::Boolean::New(env, false);
-    }
-
-    return Napi::Boolean::New(env, true);
 }
