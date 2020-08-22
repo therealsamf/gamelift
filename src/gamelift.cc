@@ -4,6 +4,8 @@
 #include "process-ready.hh"
 
 Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
+  using namespace gamelift;
+
   exports = ProcessReady::Init(env, exports);
   return AcceptPlayerSession::Init(env, exports);
 }
