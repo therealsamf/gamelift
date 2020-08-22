@@ -1,10 +1,11 @@
 
 #include "process-ready.hh"
-
+// clang-format off
 #include <string>
 
 #include <google/protobuf/repeated_field.h>
 #include <sdk.pb.h>
+// clang-format on
 
 namespace gamelift {
 
@@ -18,6 +19,12 @@ Napi::Object ProcessReady::Init(Napi::Env env, Napi::Object exports) {
           InstanceAccessor(
               "port", &Message::GetValue<int, &pbuffer::ProcessReady::port>,
               &Message::SetValue<int, &pbuffer::ProcessReady::set_port>),
+          InstanceAccessor(
+              "maxConcurrentGameSessions",
+              &Message::GetValue<
+                  int, &pbuffer::ProcessReady::maxconcurrentgamesessions>,
+              &Message::SetValue<
+                  int, &pbuffer::ProcessReady::set_maxconcurrentgamesessions>),
           InstanceAccessor(
               "logPathsToUpload",
               &Message::GetArray<std::string,
