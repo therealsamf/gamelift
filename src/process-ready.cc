@@ -3,7 +3,6 @@
 // clang-format off
 #include <string>
 
-#include <google/protobuf/repeated_field.h>
 #include <sdk.pb.h>
 // clang-format on
 

@@ -1,22 +1,81 @@
-/**
- * Protocol Buffer "proxy" for the UpdateGameSession message.
- */
 
 #include "game-session.hh"
+// clang-format off
 #include <string>
 
-GameSession::GameSession(const Napi::CallbackInfo &info) : Napi::ObjectWrap<GameSession>(info), game_session_() {}
+#include <sdk.pb.h>
+// clang-format on
 
-GameSession::GameSession(const Napi::CallbackInfo &info, const pbuffer::GameSession& game_session) : Napi::ObjectWrap<GameSession>(info) {
-    game_session_.set_fleetid(game_session.fleetid());
-    game_session_.set_gamesessionid(game_session.gamesessionid());
-    game_session_.set_maxplayers(game_session_.maxplayers());
-    game_session_.set_name(game_session.name());
-    game_session_.set_port(game_session.port());
-    game_session_.set_ipaddress(game_session.ipaddress());
-    game_session_.set_gamesessiondata(game_session.gamesessiondata());
-    game_session_.set_matchmakerdata(game_session.matchmakerdata());
-    game_session_.set_dnsname(game_session.dnsname());
+namespace gamelift {
 
-    // Loop through game properties
+using namespace com::amazon::whitewater::auxproxy;
+using Message = WrappedMessage<pbuffer::GameSession>;
+
+Napi::Object GameSession::Init(Napi::Env env, Napi::Object exports) {
+  Napi::Function func = DefineClass(
+      env, "GameSession",
+      {
+          InstanceAccessor(
+              "gameSessionId",
+              &Message::GetValue<const std::string&,
+                                 &pbuffer::GameSession::gamesessionid>,
+              &Message::SetValue<std::string,
+                                 &pbuffer::GameSession::set_gamesessionid>),
+          InstanceAccessor(
+              "fleetId",
+              &Message::GetValue<std::string, &pbuffer::GameSession::fleetid>,
+              &Message::SetValue<std::string,
+                                 &pbuffer::GameSession::set_fleetid>),
+          InstanceAccessor(
+              "name",
+              &Message::GetValue<std::string, &pbuffer::GameSession::name>,
+              &Message::SetValue<std::string, &pbuffer::GameSession::set_name>),
+          InstanceAccessor(
+              "ipAddress",
+              &Message::GetValue<std::string, &pbuffer::GameSession::ipaddress>,
+              &Message::SetValue<std::string,
+                                 &pbuffer::GameSession::set_ipaddress>),
+          InstanceAccessor(
+              "gameSessionData",
+              &Message::GetValue<std::string,
+                                 &pbuffer::GameSession::gamesessiondata>,
+              &Message::SetValue<std::string,
+                                 &pbuffer::GameSession::set_gamesessiondata>),
+          InstanceAccessor(
+              "matchMakerData",
+              &Message::GetValue<std::string,
+                                 &pbuffer::GameSession::matchmakerdata>,
+              &Message::SetValue<std::string,
+                                 &pbuffer::GameSession::set_matchmakerdata>),
+          InstanceAccessor(
+              "dnsName",
+              &Message::GetValue<std::string, &pbuffer::GameSession::dnsname>,
+              &Message::SetValue<std::string,
+                                 &pbuffer::GameSession::set_dnsname>),
+          InstanceAccessor(
+              "maxPlayers",
+              &Message::GetValue<int, &pbuffer::GameSession::maxplayers>,
+              &Message::SetValue<int, &pbuffer::GameSession::set_maxplayers>),
+          InstanceAccessor(
+              "joinable",
+              &Message::GetValue<bool, &pbuffer::GameSession::joinable>,
+              &Message::SetValue<bool, &pbuffer::GameSession::set_joinable>),
+          InstanceAccessor(
+              "port", &Message::GetValue<int, &pbuffer::GameSession::port>,
+              &Message::SetValue<int, &pbuffer::GameSession::set_port>),
+          InstanceMethod("toString", &Message::ToString),
+          InstanceMethod("fromString", &Message::FromString),
+      });
+
+  Napi::FunctionReference* constructor = new Napi::FunctionReference();
+  *constructor = Napi::Persistent(func);
+  env.SetInstanceData(constructor);
+
+  exports.Set("GameSession", func);
+  return exports;
 }
+
+GameSession::GameSession(const Napi::CallbackInfo& info)
+    : Message(info, std::make_shared<pbuffer::GameSession>()) {}
+
+};  // namespace gamelift
