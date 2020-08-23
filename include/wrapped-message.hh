@@ -14,8 +14,8 @@
 #include <memory>
 #include <string>
 #include <type_traits>
-#include <vector>
 #include <utility>
+#include <vector>
 
 namespace gamelift {
 
@@ -48,7 +48,8 @@ static U ConvertValue(const Napi::Value &value);
  * @return Node-API compatible value.
  */
 template <typename U>
-static Napi::Value ConvertNative(Napi::Env &env, U&& native);
+static Napi::Value ConvertNative(
+    Napi::Env &env, U &&native, Napi::FunctionReference *constructor = nullptr);
 
 /**
  * Base class for Protocol Buffer objects wrapped by Node-API
@@ -60,6 +61,13 @@ class WrappedMessage : public Napi::ObjectWrap<WrappedMessage<P>> {
  public:
   // Assert that the template argument correctly inherits from MessageLite
   static_assert(std::is_base_of<google::protobuf::MessageLite, P>::value);
+
+  template <typename U>
+  friend U ConvertValue(const Napi::Value &value);
+
+  template <typename U>
+  friend Napi::Value ConvertNative(Napi::Env &env, U &&native,
+                                   Napi::FunctionReference *constructor);
 
   /**
    * Construct the WrappedMessage object.
@@ -108,10 +116,11 @@ class WrappedMessage : public Napi::ObjectWrap<WrappedMessage<P>> {
    */
   Napi::Value FromString(const Napi::CallbackInfo &info);
 
-private:
-  std::shared_ptr<P> message_; /**< Internal pointer to the underlying Protocol Buffer object. */
+ private:
+  std::shared_ptr<P> message_; /**< Internal pointer to the underlying Protocol
+                                  Buffer object. */
 
-protected:
+ protected:
   /**
    * Retrieve the pointer to the internal Protocol Buffer object.
    *
@@ -145,7 +154,7 @@ protected:
    * @param value Node-API value carrying a Javascript value of type U to set
    * on the field in the internal Protocol Buffer object.
    */
-  template <typename U, void (P::*set_callable)(U&&)>
+  template <typename U, void (P::*set_callable)(U &&)>
   void SetValue(const Napi::CallbackInfo &info, const Napi::Value &value);
 
   // TODO: Figure out why I have to define two different template functions
@@ -183,7 +192,8 @@ protected:
   Napi::Value GetArray(const Napi::CallbackInfo &info);
 
   /**
-   * Set the contents of a repeated field on the internal Protocol Buffer object.
+   * Set the contents of a repeated field on the internal Protocol Buffer
+   * object.
    *
    * @tparam U Type of the repeated field.
    * @tparam add_to_array_callable Callable for the internal Protocol Buffer
@@ -195,11 +205,10 @@ protected:
    * @param value Node-API value carrying a Javascript array with values of
    * type U to emplace in the internal Protocol Buffer's object repeated field.
    */
-  template <typename U, void (P::*add_to_array_callable)(U&&),
+  template <typename U, U *(P::*add_to_array_callable)(),
             void (P::*clear_array_callable)()>
   void SetArray(const Napi::CallbackInfo &info, const Napi::Value &value);
 };
-
 
 /**
  * Convert the given Node-API value to an integer.
@@ -240,11 +249,6 @@ bool ConvertValue(const Napi::Value &value) {
   return value.As<Napi::Boolean>().Value();
 }
 
-// template<typename P>
-// static WrappedMessage<P> ConvertValue(const Napi::Value &value) {
-
-// }
-
 /**
  * Convert the given integer into a Javascript-compatible variable.
  *
@@ -253,7 +257,8 @@ bool ConvertValue(const Napi::Value &value) {
  * @return Node-API value that can be used from Javascript.
  */
 template <>
-Napi::Value ConvertNative(Napi::Env &env, int&& native) {
+Napi::Value ConvertNative(Napi::Env &env, int &&native,
+                          Napi::FunctionReference *constructor) {
   Napi::Value return_value = Napi::Number::New(env, native);
 
   if (env.IsExceptionPending()) {
@@ -272,29 +277,8 @@ Napi::Value ConvertNative(Napi::Env &env, int&& native) {
  * @return Node-API value that can be used from Javascript.
  */
 template <>
-Napi::Value ConvertNative(Napi::Env &env, std::string&& native) {
-  Napi::Value return_value = Napi::String::New(env, native);
-
-  if (env.IsExceptionPending()) {
-    env.GetAndClearPendingException().ThrowAsJavaScriptException();
-    return env.Undefined();
-  }
-
-  return return_value;
-}
-
-// TODO: Figure out why I have to define two different specializations here
-// just for the std::string&& and const std::string&
-
-/**
- * Convert the given string into a Javascript-compatible variable.
- *
- * @param native Native string to converting.
- *
- * @return Node-API value that can be used from Javascript.
- */
-template <>
-Napi::Value ConvertNative(Napi::Env &env, const std::string& native) {
+Napi::Value ConvertNative(Napi::Env &env, std::string &&native,
+                          Napi::FunctionReference *constructor) {
   Napi::Value return_value = Napi::String::New(env, native);
 
   if (env.IsExceptionPending()) {
@@ -313,7 +297,8 @@ Napi::Value ConvertNative(Napi::Env &env, const std::string& native) {
  * @return Node-API value that can be used from Javascript.
  */
 template <>
-Napi::Value ConvertNative(Napi::Env &env, bool&& native) {
+Napi::Value ConvertNative(Napi::Env &env, bool &&native,
+                          Napi::FunctionReference *constructor) {
   Napi::Value return_value = Napi::Boolean::New(env, native);
 
   if (env.IsExceptionPending()) {
@@ -354,7 +339,6 @@ template <>
 bool CheckValue<bool>(const Napi::Value &value) {
   return value.IsBoolean();
 }
-
 
 template <typename P>
 WrappedMessage<P>::WrappedMessage(const Napi::CallbackInfo &info)
@@ -426,11 +410,12 @@ Napi::Value WrappedMessage<P>::GetValue(const Napi::CallbackInfo &info) {
   // Execute the getter
   U value = std::invoke(get_callable, *message_);
 
-  return ConvertNative<U>(env, std::move(value));
+  return ConvertNative<U>(env, std::move(value),
+                          static_cast<Napi::FunctionReference *>(info.Data()));
 }
 
 template <typename P>
-template <typename U, void (P::*set_callable)(U&&)>
+template <typename U, void (P::*set_callable)(U &&)>
 void WrappedMessage<P>::SetValue(const Napi::CallbackInfo &info,
                                  const Napi::Value &value) {
   Napi::Env env = info.Env();
@@ -492,7 +477,9 @@ Napi::Value WrappedMessage<P>::GetArray(const Napi::CallbackInfo &info) {
   for (; it != repeated_field.end(); ++it) {
     U native_value = *it;
 
-    Napi::Value value = ConvertNative<U>(env, std::move(native_value));
+    Napi::Value value =
+        ConvertNative<U>(env, std::move(native_value),
+                         static_cast<Napi::FunctionReference *>(info.Data()));
 
     array.Set(index++, value);
   }
@@ -501,7 +488,7 @@ Napi::Value WrappedMessage<P>::GetArray(const Napi::CallbackInfo &info) {
 }
 
 template <typename P>
-template <typename U, void (P::*add_to_array_callable)(U&&),
+template <typename U, U *(P::*add_to_array_callable)(),
           void (P::*clear_array_callable)()>
 void WrappedMessage<P>::SetArray(const Napi::CallbackInfo &info,
                                  const Napi::Value &value) {
@@ -549,9 +536,9 @@ void WrappedMessage<P>::SetArray(const Napi::CallbackInfo &info,
   std::invoke(clear_array_callable, *message_);
 
   // Add all the values we placed in the vector to the Protocol Buffer object
-  for (auto it = vector.begin();
-       it != vector.end(); ++it) {
-    std::invoke(add_to_array_callable, *message_, std::move(*it));
+  for (auto it = vector.begin(); it != vector.end(); ++it) {
+    U *native_array_value = std::invoke(add_to_array_callable, *message_);
+    *native_array_value = *it;
   }
 }
 

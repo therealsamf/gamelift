@@ -1,6 +1,6 @@
 
-#ifndef GAMELIFT_JS_UPDATE_GAME_SESSION_H_
-#define GAMELIFT_JS_UPDATE_GAME_SESSION_H_
+#ifndef GAMELIFT_IO_UPDATE_GAME_SESSION_H_
+#define GAMELIFT_IO_UPDATE_GAME_SESSION_H_
 
 #include <napi.h>
 #include <sdk.pb.h>
@@ -28,4 +28,4 @@ private:
     Napi::Value FromString(const Napi::CallbackInfo& info);
 };
 
-#endif // GAMELIFT_JS_UPDATE_GAME_SESSION_H_
+#endif // GAMELIFT_IO_UPDATE_GAME_SESSION_H_

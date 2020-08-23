@@ -1,6 +1,6 @@
 
-#ifndef GAMELIFT_JS_GAME_SESSION_H_
-#define GAMELIFT_JS_GAME_SESSION_H_
+#ifndef GAMELIFT_IO_GAME_SESSION_H_
+#define GAMELIFT_IO_GAME_SESSION_H_
 #include <napi.h>
 #include <sdk.pb.h>
 
@@ -17,4 +17,4 @@ class GameSession : public WrappedMessage<pbuffer::GameSession> {
 
 };  // namespace gamelift
 
-#endif  // GAMELIFT_JS_GAME_SESSION_H_
+#endif  // GAMELIFT_IO_GAME_SESSION_H_

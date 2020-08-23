@@ -4,6 +4,8 @@
 #include <string>
 
 #include <sdk.pb.h>
+
+#include "game-property.hh"
 // clang-format on
 
 namespace gamelift {
@@ -16,8 +18,17 @@ Napi::Object GameSession::Init(Napi::Env env, Napi::Object exports) {
       env, "GameSession",
       {
           InstanceAccessor(
+              "gameProperties",
+              &Message::GetArray<pbuffer::GameProperty,
+                                 &pbuffer::GameSession::gameproperties>,
+              &Message::SetArray<pbuffer::GameProperty,
+                                 &pbuffer::GameSession::add_gameproperties,
+                                 &pbuffer::GameSession::clear_gameproperties>,
+              napi_default,
+              env.GetInstanceData<Napi::FunctionReference>()),
+          InstanceAccessor(
               "gameSessionId",
-              &Message::GetValue<const std::string&,
+              &Message::GetValue<std::string,
                                  &pbuffer::GameSession::gamesessionid>,
               &Message::SetValue<std::string,
                                  &pbuffer::GameSession::set_gamesessionid>),

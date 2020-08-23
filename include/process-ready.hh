@@ -1,6 +1,6 @@
 
-#ifndef GAMELIFT_JS_PROCESS_READY_H_
-#define GAMELIFT_JS_PROCESS_READY_H
+#ifndef GAMELIFT_IO_PROCESS_READY_H_
+#define GAMELIFT_IO_PROCESS_READY_H
 #include <napi.h>
 #include <sdk.pb.h>
 
@@ -19,4 +19,4 @@ class ProcessReady
 
 };  // namespace gamelift
 
-#endif  // GAMELIFT_JS_PROCESS_READY_H
+#endif  // GAMELIFT_IO_PROCESS_READY_H
