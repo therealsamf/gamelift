@@ -1,6 +1,7 @@
 
 #include "process-ready.hh"
 // clang-format off
+#include <memory>
 #include <string>
 
 #include <sdk.pb.h>
@@ -14,26 +15,26 @@ using Message = WrappedMessage<pbuffer::ProcessReady>;
 Napi::Object ProcessReady::Init(Napi::Env env, Napi::Object exports) {
   Napi::Function func = DefineClass(
       env, "ProcessReady",
-      {
-          InstanceAccessor(
-              "port", &Message::GetValue<int, &pbuffer::ProcessReady::port>,
-              &Message::SetValue<int, &pbuffer::ProcessReady::set_port>),
-          InstanceAccessor(
-              "maxConcurrentGameSessions",
-              &Message::GetValue<
-                  int, &pbuffer::ProcessReady::maxconcurrentgamesessions>,
-              &Message::SetValue<
-                  int, &pbuffer::ProcessReady::set_maxconcurrentgamesessions>),
-          InstanceAccessor(
-              "logPathsToUpload",
-              &Message::GetArray<std::string,
-                                 &pbuffer::ProcessReady::logpathstoupload>,
-              &Message::SetArray<
-                  std::string, &pbuffer::ProcessReady::add_logpathstoupload,
-                  &pbuffer::ProcessReady::clear_logpathstoupload>),
-          InstanceMethod("toString", &Message::ToString),
-          InstanceMethod("fromString", &Message::FromString),
-      });
+      {InstanceAccessor(
+           "port", &Message::GetValue<int, &pbuffer::ProcessReady::port>,
+           &Message::SetValue<int, &pbuffer::ProcessReady::set_port>),
+       InstanceAccessor(
+           "maxConcurrentGameSessions",
+           &Message::GetValue<
+               int, &pbuffer::ProcessReady::maxconcurrentgamesessions>,
+           &Message::SetValue<
+               int, &pbuffer::ProcessReady::set_maxconcurrentgamesessions>),
+       InstanceAccessor(
+           "logPathsToUpload",
+           &Message::GetArray<std::string,
+                              &pbuffer::ProcessReady::logpathstoupload>,
+           &Message::SetArray<std::string,
+                              &pbuffer::ProcessReady::add_logpathstoupload,
+                              &pbuffer::ProcessReady::clear_logpathstoupload>),
+       InstanceMethod("toString", &Message::ToString),
+       InstanceMethod("fromString", &Message::FromString),
+       InstanceMethod("getTypeName", &Message::GetTypeName),
+       InstanceMethod("fromJsonString", &Message::FromJsonString)});
 
   Napi::FunctionReference* constructor = new Napi::FunctionReference();
   *constructor = Napi::Persistent(func);

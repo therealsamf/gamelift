@@ -163,3 +163,7 @@ build
 *.exe
 *.out
 *.app
+
+# Generated documentation
+docs/*
+!docs/.gitkeep

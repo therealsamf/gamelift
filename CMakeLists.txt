@@ -48,7 +48,11 @@ set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "gamelift")
 set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".node")
 
-target_compile_definitions(${PROJECT_NAME} PUBLIC NAPI_VERSION=6)
+target_compile_definitions(${PROJECT_NAME} PUBLIC
+    NAPI_VERSION=6
+    __STDC_LIB_EXT1__
+    __STDC_WANT_LIB_EXT1__=1
+)
 target_link_libraries(${PROJECT_NAME} PUBLIC gamelift.io-pb)
 
 # Include N-API wrappers
@@ -68,7 +72,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${NODE_ADDON_API_DIR})
 target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gamelift.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/accept-player-session.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/activate-game-session.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/game-property.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/game-session.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/game-session-activate.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/process-ready.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/update-game-session.cc
 )

@@ -1,6 +1,6 @@
 
-#ifndef GAMELIFT_IO_ACCEPT_PLAYER_SESSION_H_
-#define GAMELIFT_IO_ACCEPT_PLAYER_SESSION_H_
+#ifndef GAMELIFT_IO_ACTIVATE_GAME_SESSION_H_
+#define GAMELIFT_IO_ACTIVATE_GAME_SESSION_H_
 #include <napi.h>
 #include <sdk.pb.h>
 
@@ -11,21 +11,21 @@ using namespace com::amazon::whitewater::auxproxy;
 namespace gamelift {
 
 /**
- * Javascript compatible object wrapping the AcceptPlayerSession Protocol
+ * Javascript compatible object wrapping the ActivateGameSession Protocol
  * Buffer object.
  *
  * This Protocol Buffer object is internal to the AWS GameLift service and is
- * only used to communicate when the [AcceptPlayerSession()] SDK method is
+ * only used to communicate when the [ActivateGameSession()] SDK method is
  * utilized.
  *
- * [AcceptPlayerSession()]:
+ * [ActivateGameSession()]:
  * https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-actions.html
  */
-class AcceptPlayerSession
-    : public WrappedMessage<pbuffer::AcceptPlayerSession> {
+class ActivateGameSession
+    : public WrappedMessage<pbuffer::ActivateGameSession> {
  public:
   /**
-   * Initialize the AcceptPlayerSession class. This attaches the constructor to
+   * Initialize the ActivateGameSession class. This attaches the constructor to
    * the addon and allows objects to be instantiated from "Javascript-land".
    *
    * @param env Node-API environment
@@ -37,17 +37,17 @@ class AcceptPlayerSession
   static Napi::Object Init(Napi::Env env, Napi::Object exports);
 
   /**
-   * Constructor for the AcceptPlayerSession.
+   * Constructor for the ActivateGameSession.
    *
    * Initializes the ObjectWrap class as well as the internal
-   * AcceptPlayerSession Protocol Buffer object with its defaults for its
+   * ActivateGameSession Protocol Buffer object with its defaults for its
    * fields.
    *
    * @param info Node-API callback information
    */
-  AcceptPlayerSession(const Napi::CallbackInfo& info);
+  ActivateGameSession(const Napi::CallbackInfo& info);
 };
 
 };  // namespace gamelift
 
-#endif  // GAMELIFT_IO_ACCEPT_PLAYER_SESSION_H_
+#endif  // GAMELIFT_IO_ACTIVATE_GAME_SESSION_H_

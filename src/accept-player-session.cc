@@ -1,62 +1,47 @@
 
 #include "accept-player-session.hh"
-
+// clang-format off
+#include <memory>
 #include <string>
 
+#include <sdk.pb.h>
+// clang-format on
+
+namespace gamelift {
+
+using namespace com::amazon::whitewater::auxproxy;
+using Message = WrappedMessage<pbuffer::AcceptPlayerSession>;
+
 Napi::Object AcceptPlayerSession::Init(Napi::Env env, Napi::Object exports) {
-    Napi::Function func = DefineClass(env, "AcceptPlayerSession", {
-        InstanceAccessor("playerSessionId", &AcceptPlayerSession::GetPlayerSessionId, &AcceptPlayerSession::SetPlayerSessionId),
-        InstanceAccessor("gameSessionId", &AcceptPlayerSession::GetGameSessionId, &AcceptPlayerSession::SetGameSessionId)
-    });
+  Napi::Function func = DefineClass(
+      env, "AcceptPlayerSession",
+      {InstanceAccessor(
+           "playerSessionId",
+           &Message::GetValue<std::string,
+                              &pbuffer::AcceptPlayerSession::playersessionid>,
+           &Message::SetValue<
+               std::string,
+               &pbuffer::AcceptPlayerSession::set_playersessionid>),
+       InstanceAccessor(
+           "gameSessionId",
+           &Message::GetValue<std::string,
+                              &pbuffer::AcceptPlayerSession::gamesessionid>,
+           &Message::SetValue<
+               std::string, &pbuffer::AcceptPlayerSession::set_gamesessionid>),
+       InstanceMethod("toString", &Message::ToString),
+       InstanceMethod("fromString", &Message::FromString),
+       InstanceMethod("fromJsonString", &Message::FromJsonString),
+       InstanceMethod("getTypeName", &Message::GetTypeName)});
 
-    Napi::FunctionReference* constructor = new Napi::FunctionReference();
-    *constructor = Napi::Persistent(func);
-    env.SetInstanceData(constructor);
+  Napi::FunctionReference* constructor = new Napi::FunctionReference();
+  *constructor = Napi::Persistent(func);
+  env.SetInstanceData(constructor);
 
-
-    exports.Set("AcceptPlayerSession", func);
-    return exports;
+  exports.Set("AcceptPlayerSession", func);
+  return exports;
 }
 
 AcceptPlayerSession::AcceptPlayerSession(const Napi::CallbackInfo& info)
-    : Napi::ObjectWrap<AcceptPlayerSession>(info), accept_player_session_() {
-}
+    : Message(info, std::make_shared<pbuffer::AcceptPlayerSession>()) {}
 
-Napi::Value AcceptPlayerSession::GetPlayerSessionId(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    const std::string& player_session_id = accept_player_session_.playersessionid();
-
-    const Napi::Value& return_value = Napi::String::New(info.Env(), player_session_id);
-    if (env.IsExceptionPending()) {
-        env.GetAndClearPendingException().ThrowAsJavaScriptException();
-        return env.Undefined();
-    }
-
-    return return_value;
-}
-
-void AcceptPlayerSession::SetPlayerSessionId(const Napi::CallbackInfo& info, const Napi::Value& value) {
-    if (!value.IsString()) {
-        Napi::TypeError::New(info.Env(), "String expected").ThrowAsJavaScriptException();
-    }
-
-    Napi::String player_session_id_value = value.As<Napi::String>();
-    accept_player_session_.set_playersessionid(player_session_id_value.Utf8Value());
-}
-
-
-Napi::Value AcceptPlayerSession::GetGameSessionId(const Napi::CallbackInfo& info) {
-    const std::string& game_session_id = accept_player_session_.gamesessionid();
-
-    return Napi::String::New(info.Env(), game_session_id);
-}
-
-void AcceptPlayerSession::SetGameSessionId(const Napi::CallbackInfo& info, const Napi::Value& value) {
-    if (!value.IsString()) {
-        Napi::TypeError::New(info.Env(), "String expected").ThrowAsJavaScriptException();
-    }
-
-    Napi::String game_session_id_value = value.As<Napi::String>();
-    accept_player_session_.set_gamesessionid(game_session_id_value.Utf8Value());
-}
-
+};  // namespace gamelift

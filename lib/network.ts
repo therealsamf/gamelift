@@ -7,13 +7,15 @@ import bindings from "bindings";
 import SocketIOClient from "socket.io-client";
 import _debug from "debug";
 
-import type { GameSession } from "./game-session";
-import type { LogParameters, UpdateGameSession } from "./types";
+import type { LogParameters } from "./types";
 
 const debug = _debug("gamelift.io:network");
 const _gamelift = bindings("gamelift.node");
 
-const NOOP = () => {};
+/**
+ * @hidden
+ */
+const NOOP = () => {}; // eslint-disable-line @typescript-eslint/no-empty-function
 
 class ServiceCallFailedError extends Error {
   constructor() {
@@ -35,9 +37,12 @@ export type Ack = (response: boolean) => void;
  * @internal
  */
 export interface HandlerFunctions {
-  onStartGameSessionHandler: (gameSession: GameSession, ack: Ack) => void;
+  onStartGameSessionHandler: (
+    gameSession: gamelift.GameSession,
+    ack: Ack
+  ) => void;
   onUpdateGameSessionHandler: (
-    updateGameSession: UpdateGameSession,
+    updateGameSession: gamelift.UpdateGameSession,
     ack: Ack
   ) => void;
   onTerminateSessionHandler: (terminationTime: number) => void;
@@ -53,7 +58,7 @@ export class Network {
    * the Gamelift service. Passed to socket.io's client's engine.io Manager objects.
    * @internal
    */
-  static RECONNECT_ATTEMPTS: number = 3;
+  static RECONNECT_ATTEMPTS = 3;
 
   /**
    * Internal reference to the object with the handler functions for specific GameLift
@@ -92,6 +97,8 @@ export class Network {
         socket.on("connect_error", reject);
 
         socket.once("connect", () => {
+          debug('socket "%s" connected to GameLift service', socket.id);
+
           socket.off("error", reject);
           socket.off("connect_handler", reject);
           resolve();
@@ -133,9 +140,9 @@ export class Network {
    * @param socket
    */
   private setupClientHandlers(socket): void {
-    socket.on("StartGameSession", this.onStartGameSession);
-    socket.on("UpdateGameSession", this.onUpdateGameSession);
-    socket.on("TerminateProcess", this.onTerminateProcess);
+    socket.on("StartGameSession", this.onStartGameSession.bind(this));
+    socket.on("UpdateGameSession", this.onUpdateGameSession.bind(this));
+    socket.on("TerminateProcess", this.onTerminateProcess.bind(this));
   }
 
   /**
@@ -147,7 +154,7 @@ export class Network {
    * @param socket
    */
   private onClose(socket: SocketIOClient.Socket): void {
-    debug('socket "%s" disconnected', socket.id);
+    debug("socket disconnected");
     socket.off();
   }
 
@@ -162,13 +169,14 @@ export class Network {
    * @param ack ACK function for alerting the GameLift service whether creation was
    *   successful.
    */
-  private onStartGameSession(data: string, ack?: Ack): void {
+  private onStartGameSession(data: Buffer, ack?: Ack): void {
     debug("socket received 'OnStartGameSession' event");
-    const onStartGameSessionMessage: gamelift.OnStartGameSession = new _gamelift.OnStartGameSession();
+
+    const activateGameSessionMessage: gamelift.ActivateGameSession = new _gamelift.ActivateGameSession();
 
     let success = false;
     try {
-      success = onStartGameSessionMessage.fromString(data);
+      success = activateGameSessionMessage.fromJsonString(Buffer.from(data));
     } catch (error) {
       debug(
         "error occurred while attempting to parse 'OnStartGameSession' event message"
@@ -181,9 +189,9 @@ export class Network {
       return;
     }
 
-    const gameSession = onStartGameSessionMessage.gameSession;
+    const gameSession = activateGameSessionMessage.gameSession;
 
-    let _ack: Ack = ack || NOOP;
+    const _ack: Ack = ack || NOOP;
     this.handler.onStartGameSessionHandler(gameSession, _ack);
   }
 
@@ -200,10 +208,29 @@ export class Network {
    *   successful.
    */
   private onUpdateGameSession(
-    _name: string,
-    data: string,
-    ack: (response: boolean) => void
-  ): void {}
+    data: Buffer,
+    ack?: (response: boolean) => void
+  ): void {
+    const updateGameSession: gamelift.UpdateGameSession = new _gamelift.UpdateGameSession();
+
+    let success = false;
+    try {
+      success = updateGameSession.fromString(data);
+    } catch (error) {
+      debug(
+        "error occurred while attempting to parse 'OnUpdateGameSession' event message"
+      );
+      return;
+    }
+
+    if (!success) {
+      debug("failed to parse 'OnUpdateGameSession' event message data");
+      return;
+    }
+
+    const _ack: Ack = ack || NOOP;
+    this.handler.onUpdateGameSessionHandler(updateGameSession, _ack);
+  }
 
   /**
    * Handle the "OnTerminateProcess" event from the GameLift service.
@@ -250,7 +277,21 @@ export class Network {
       processReadyMessage.logPathsToUpload = logParameters.logPaths || [];
     }
 
-    await this.emit("ProcessReady", processReadyMessage);
+    await this.emit(processReadyMessage);
+  }
+
+  /**
+   * Send a message to notify the GameLift service that the game session has
+   * been activated and is ready to receive player sessions.
+   *
+   *
+   */
+  public async activateGameSession(gameSessionId: string): Promise<void> {
+    const gameSessionActivateMessage: gamelift.GameSessionActivate = new _gamelift.GameSessionActivate();
+
+    gameSessionActivateMessage.gameSessionId = gameSessionId;
+
+    await this.emit(gameSessionActivateMessage);
   }
 
   /**
@@ -260,19 +301,24 @@ export class Network {
    * @param eventName Name of the event that's being emitted.
    * @param message Procotol Buffer object that's serialized and sent as data.
    */
-  public async emit(
-    eventName: string,
-    message: gamelift.Message
-  ): Promise<void> {
-    debug("sending '%s' emit to GameLift", eventName);
-    const self = this;
+  public async emit(message: gamelift.Message): Promise<void> {
+    debug("sending '%s' emit to GameLift", message.getTypeName());
+
     await new Promise(
       (resolve: () => void, reject: (error?: Error) => void): void => {
-        self.socket.emit(
-          eventName,
+        this.socket.emit(
+          message.getTypeName(),
           message.toString(),
-          (response: boolean): void => {
-            if (!response) {
+          (success: boolean, response?: string): void => {
+            debug(
+              "response received for '%s' event: (%s, %s)",
+              message.getTypeName(),
+              success,
+              response
+            );
+            if (!success) {
+              // TODO: Parse the response and give an actually useful error
+              // that was received from GameLift service.
               reject(new ServiceCallFailedError());
             } else {
               resolve();

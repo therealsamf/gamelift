@@ -21,5 +21,3 @@ export interface LogParameters {
    */
   logPaths?: string[];
 }
-
-export interface UpdateGameSession {}

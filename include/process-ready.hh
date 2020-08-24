@@ -1,6 +1,6 @@
 
 #ifndef GAMELIFT_IO_PROCESS_READY_H_
-#define GAMELIFT_IO_PROCESS_READY_H
+#define GAMELIFT_IO_PROCESS_READY_H_
 #include <napi.h>
 #include <sdk.pb.h>
 
@@ -9,8 +9,7 @@
 using namespace com::amazon::whitewater::auxproxy;
 namespace gamelift {
 
-class ProcessReady
-    : public WrappedMessage<pbuffer::ProcessReady> {
+class ProcessReady : public WrappedMessage<pbuffer::ProcessReady> {
  public:
   static Napi::Object Init(Napi::Env env, Napi::Object exports);
   ProcessReady(const Napi::CallbackInfo& info);
@@ -19,4 +18,4 @@ class ProcessReady
 
 };  // namespace gamelift
 
-#endif  // GAMELIFT_IO_PROCESS_READY_H
+#endif  // GAMELIFT_IO_PROCESS_READY_H_

@@ -6,16 +6,18 @@
 
 #ifndef GAMELIFT_IO_WRAPPED_MESSAGE_
 #define GAMELIFT_IO_WRAPPED_MESSAGE_
-
-#include <google/protobuf/message_lite.h>
-#include <napi.h>
-
+// clang-format off
 #include <functional>
 #include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include <google/protobuf/message_lite.h>
+#include <google/protobuf/util/json_util.h>
+#include <napi.h>
+// clang-format on
 
 namespace gamelift {
 
@@ -50,6 +52,17 @@ static U ConvertValue(const Napi::Value &value);
 template <typename U>
 static Napi::Value ConvertNative(
     Napi::Env &env, U &&native, Napi::FunctionReference *constructor = nullptr);
+
+static google::protobuf::util::JsonParseOptions
+      json_parse_options; /**!< Parse options for Protobuf JSON parsing. */
+
+/**
+ * Method called when the addon is initialized for initializing the
+ * json_parse_options static member.
+ */
+static void InitializeJsonParseOptions() {
+  json_parse_options.ignore_unknown_fields = true;
+}
 
 /**
  * Base class for Protocol Buffer objects wrapped by Node-API
@@ -94,6 +107,17 @@ class WrappedMessage : public Napi::ObjectWrap<WrappedMessage<P>> {
                  const std::shared_ptr<P> &message_ptr);
 
   /**
+   * Retrieve the type name for the Protocol Buffer object.
+   *
+   * @param info Node-API callback information since this function is wrapped
+   * in Node-API.
+   *
+   * @return Node-API compatible string with the type name of the internal
+   * Protocol Buffer object.
+   */
+  Napi::Value GetTypeName(const Napi::CallbackInfo &info);
+
+  /**
    * Compute the wire format for the internal protocol buffer object.
    *
    * @param info Node-API callback information since this function is wrapped
@@ -105,7 +129,7 @@ class WrappedMessage : public Napi::ObjectWrap<WrappedMessage<P>> {
   Napi::Value ToString(const Napi::CallbackInfo &info);
 
   /**
-   * Fill-in the internal Protocol Buffer object with the pass NodeJS string
+   * Fill-in the internal Protocol Buffer object with the passed NodeJS string
    * argument.
    *
    * @param info Node-API callback information since this function is wrapped
@@ -115,6 +139,20 @@ class WrappedMessage : public Napi::ObjectWrap<WrappedMessage<P>> {
    * successful or not.
    */
   Napi::Value FromString(const Napi::CallbackInfo &info);
+
+  /**
+   * Fill-in the internal Protocol Buffer object with the passed NodeJS string
+   * argument as a JSON string.
+   *
+   * @param info Node-API callback information since this function is wrapped
+   * in Node-API.
+   *
+   * @return Node-API compatible boolean, determining if the operation was
+   * successful or not.
+   */
+  Napi::Value FromJsonString(const Napi::CallbackInfo &info);
+
+
 
  private:
   std::shared_ptr<P> message_; /**< Internal pointer to the underlying Protocol
@@ -173,6 +211,26 @@ class WrappedMessage : public Napi::ObjectWrap<WrappedMessage<P>> {
    * on the field in the internal Protocol Buffer object.
    */
   template <typename U, void (P::*set_callable)(U)>
+  void SetValue(const Napi::CallbackInfo &info, const Napi::Value &value);
+
+  /**
+   * Set the value of a field on the internal Protocol Buffer object.
+   *
+   * This is an overload the SetValue method specifically for nested message
+   * fields in Protocol Buffer objects. This is because those fields don't have
+   * a "normal" set method, only an allocated one. Thus the logic looks a
+   * little different for this implementation.
+   *
+   * @tparam U Type of the field.
+   * @tparam set_allocated_callable Callable for the internal Protocol Buffer
+   * object for taking ownership of the given pointer and setting as the field
+   * value.
+   * @param info Node-API callback information since this function is wrapped
+   * in Node-API.
+   * @param value Node-API value carrying a Javascript value of type U to set
+   * on the field in the internal Protocol Buffer object.
+   */
+  template <typename U, void (P::*set_allocated_callable)(U *)>
   void SetValue(const Napi::CallbackInfo &info, const Napi::Value &value);
 
   /**
@@ -351,39 +409,103 @@ WrappedMessage<P>::WrappedMessage(const Napi::CallbackInfo &info,
     : Napi::ObjectWrap<WrappedMessage<P>>(info), message_(message_ptr) {}
 
 template <typename P>
-Napi::Value WrappedMessage<P>::ToString(const Napi::CallbackInfo &info) {
+Napi::Value WrappedMessage<P>::GetTypeName(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
+
   if (!message_) {
-    Napi::Error::New(env, "Message has not been initialized");
+    Napi::Error::New(env, "message has not been initialized");
     return env.Undefined();
   }
 
-  const std::string &message_string = message_->SerializeAsString();
+  const std::string &type_name = message_->GetTypeName();
 
-  const Napi::String &message = Napi::String::New(info.Env(), message_string);
+  const Napi::String &type_value = Napi::String::New(info.Env(), type_name);
 
   if (info.Env().IsExceptionPending()) {
     info.Env().GetAndClearPendingException().ThrowAsJavaScriptException();
     return info.Env().Undefined();
   }
 
-  return message;
+  return type_value;
+}
+
+template <typename P>
+Napi::Value WrappedMessage<P>::ToString(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  if (!message_) {
+    Napi::Error::New(env, "message has not been initialized");
+    return env.Undefined();
+  }
+
+  const std::string &message_string = message_->SerializePartialAsString();
+
+  // Copy the string's data to dynamic memory
+  std::string *message = new (std::nothrow) std::string(message_string);
+  if (!message) {
+    Napi::Error::New(env, "unable to allocate buffer for message")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  std::function<void(const Napi::Env &env, char *data)> finalizer = std::bind(
+      [](std::string *message, const Napi::Env &env, char *data) {
+        if (!message) {
+          return;
+        }
+        delete message;
+      },
+      message, std::placeholders::_1, std::placeholders::_2);
+
+  const Napi::Buffer<char> &message_buffer = Napi::Buffer<char>::New(
+      env, message->data(), message_string.size(), finalizer);
+
+  if (env.IsExceptionPending()) {
+    env.GetAndClearPendingException().ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  return message_buffer;
 }
 
 template <typename P>
 Napi::Value WrappedMessage<P>::FromString(const Napi::CallbackInfo &info) {
   Napi::Env env = info.Env();
 
-  if (info.Length() < 1 || !info[0].IsString()) {
-    Napi::TypeError::New(env, "String expected").ThrowAsJavaScriptException();
+  if (info.Length() < 1 || !info[0].IsBuffer()) {
+    Napi::TypeError::New(env, "buffer expected").ThrowAsJavaScriptException();
     return env.Undefined();
   }
+  const Napi::Buffer<char> buffer = info[0].As<Napi::Buffer<char>>();
 
-  const std::string &input_string = info[0].As<Napi::String>().Utf8Value();
+  char *data = buffer.Data();
+  const std::string &input_string = std::string(data, buffer.Length());
   bool success = message_->ParseFromString(input_string);
 
   if (!success) {
-    Napi::Error::New(env, "Malformed message").ThrowAsJavaScriptException();
+    Napi::Error::New(env, "malformed message").ThrowAsJavaScriptException();
+    return Napi::Boolean::New(env, false);
+  }
+
+  return Napi::Boolean::New(env, true);
+}
+
+template <typename P>
+Napi::Value WrappedMessage<P>::FromJsonString(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+
+  if (info.Length() < 1 || !info[0].IsBuffer()) {
+    Napi::TypeError::New(env, "buffer expected").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  const Napi::Buffer<char> buffer = info[0].As<Napi::Buffer<char>>();
+
+  char *data = buffer.Data();
+  const std::string &input_string = std::string(data, buffer.Length());
+
+  if (!google::protobuf::util::JsonStringToMessage(
+           input_string, message_.get(), json_parse_options)
+           .ok()) {
+    Napi::Error::New(env, "malformed message").ThrowAsJavaScriptException();
     return Napi::Boolean::New(env, false);
   }
 
@@ -448,6 +570,31 @@ void WrappedMessage<P>::SetValue(const Napi::CallbackInfo &info,
   U native_value = ConvertValue<U>(value);
 
   std::invoke(set_callable, *message_, std::forward<U>(native_value));
+}
+
+template <typename P>
+template <typename U, void (P::*set_allocated_callable)(U *)>
+void WrappedMessage<P>::SetValue(const Napi::CallbackInfo &info,
+                                 const Napi::Value &value) {
+  Napi::Env env = info.Env();
+
+  std::shared_ptr<P> message_ = GetMessagePtr();
+
+  if (!message_) {
+    Napi::Error::New(env, "message hasn't been initialized");
+    return;
+  }
+
+  U native_value = ConvertValue<U>(value);
+
+  // Copy the native_value that's been allocated on the stack to a
+  // dynamically allocated object
+  U *new_native_value = new U(native_value);
+
+  // Calling the set_allocated methods for the Protocol Buffer objects
+  // releases ownership from the calling code, so we shouldn't have to worry
+  // about cleaning up the new_native_value.
+  std::invoke(set_allocated_callable, *message_, new_native_value);
 }
 
 template <typename P>
