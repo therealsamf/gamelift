@@ -9,6 +9,7 @@
 // clang-format off
 #include <functional>
 #include <memory>
+#include <stdint.h>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -282,6 +283,19 @@ int ConvertValue(const Napi::Value &value) {
 }
 
 /**
+ * Convert the given Node-API value to a long integer.
+ *
+ * @param value Node-API value to convert into long integer.
+ *
+ * @return Native long integer representing the value contained within the
+ * given Node-API value.
+ */
+template <>
+int64_t ConvertValue(const Napi::Value &value) {
+  return value.As<Napi::Number>().Int64Value();
+}
+
+/**
  * Convert the given Node-API value to a string.
  *
  * @param value Node-API value to convert into string.
@@ -316,6 +330,26 @@ bool ConvertValue(const Napi::Value &value) {
  */
 template <>
 Napi::Value ConvertNative(Napi::Env &env, int &&native,
+                          Napi::FunctionReference *constructor) {
+  Napi::Value return_value = Napi::Number::New(env, native);
+
+  if (env.IsExceptionPending()) {
+    env.GetAndClearPendingException().ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  return return_value;
+}
+
+/**
+ * Convert the given long integer into a Javascript-compatible variable.
+ *
+ * @param native Native long integer to converting.
+ *
+ * @return Node-API value that can be used from Javascript.
+ */
+template <>
+Napi::Value ConvertNative(Napi::Env &env, int64_t &&native,
                           Napi::FunctionReference *constructor) {
   Napi::Value return_value = Napi::Number::New(env, native);
 
@@ -385,6 +419,11 @@ static bool CheckValue(const Napi::Value &value);
 
 template <>
 bool CheckValue<int>(const Napi::Value &value) {
+  return value.IsNumber();
+}
+
+template <>
+bool CheckValue<int64_t>(const Napi::Value &value) {
   return value.IsNumber();
 }
 
@@ -549,6 +588,11 @@ void WrappedMessage<P>::SetValue(const Napi::CallbackInfo &info,
     return;
   }
 
+  if (!CheckValue<U>(value)) {
+    Napi::TypeError::New(env, "invalid type").ThrowAsJavaScriptException();
+    return;
+  }
+
   U native_value = ConvertValue<U>(value);
 
   std::invoke(set_callable, *message_, std::forward<U>(native_value));
@@ -564,6 +608,11 @@ void WrappedMessage<P>::SetValue(const Napi::CallbackInfo &info,
 
   if (!message_) {
     Napi::Error::New(env, "message hasn't been initialized");
+    return;
+  }
+
+  if (!CheckValue<U>(value)) {
+    Napi::TypeError::New(env, "invalid type").ThrowAsJavaScriptException();
     return;
   }
 

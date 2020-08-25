@@ -289,12 +289,11 @@ export class GameLiftServerState extends GameLiftCommonState {
       });
   }
 
-  public acceptPlayerSession(playerSessionId: string): void {}
-
   /**
    * Activate the current game session. This signals to the GameLift service
    * that the process is ready to handle incoming connections.
    *
+   * @internal
    */
   public async activateGameSession(): Promise<void> {
     debug("activating current game session: '%s'", this.gameSessionId);
@@ -312,6 +311,28 @@ export class GameLiftServerState extends GameLiftCommonState {
     }
 
     await this.networking.activateGameSession(this.gameSessionId);
+  }
+
+  /**
+   * Accept the player session by the given identifier.
+   *
+   * @internal
+   */
+  public async acceptPlayerSession(playerSessionId: string): Promise<void> {
+    debug("accepting player session '%s'", playerSessionId);
+
+    if (!this.assertNetworkInitialized()) {
+      throw new GameLiftServerNotInitializedError();
+    }
+
+    if (!this.gameSessionId) {
+      throw new NoGameSessionError();
+    }
+
+    await this.networking.acceptPlayerSession(
+      playerSessionId,
+      this.gameSessionId
+    );
   }
 
   /**

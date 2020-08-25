@@ -18,8 +18,12 @@ const _gamelift = bindings("gamelift.node");
 const NOOP = () => {}; // eslint-disable-line @typescript-eslint/no-empty-function
 
 class ServiceCallFailedError extends Error {
-  constructor() {
-    super("GameLift service call failed");
+  constructor(message?: string) {
+    const prefix = "GameLift service call failed";
+    if (!message) super(prefix);
+    else {
+      super(`${prefix}: '${message}'`);
+    }
   }
 }
 
@@ -284,7 +288,8 @@ export class Network {
    * Send a message to notify the GameLift service that the game session has
    * been activated and is ready to receive player sessions.
    *
-   *
+   * @internal
+   * @param gameSessionId - Identifier for the game session.
    */
   public async activateGameSession(gameSessionId: string): Promise<void> {
     const gameSessionActivateMessage: gamelift.GameSessionActivate = new _gamelift.GameSessionActivate();
@@ -292,6 +297,28 @@ export class Network {
     gameSessionActivateMessage.gameSessionId = gameSessionId;
 
     await this.emit(gameSessionActivateMessage);
+  }
+
+  /**
+   * Notify the GameLift service that the given player session ID has been
+   * joined the game.
+   *
+   * @internal
+   * @param playerSessionId - Identifier for the player session that's
+   * attempting to be accepted.
+   * @param gameSessionId - Identifier for the current game session that the
+   * player session is attempting to join.
+   */
+  public async acceptPlayerSession(
+    playerSessionId: string,
+    gameSessionId: string
+  ): Promise<void> {
+    const acceptPlayerSessionMessage: gamelift.AcceptPlayerSession = new _gamelift.AcceptPlayerSession();
+
+    acceptPlayerSessionMessage.playerSessionId = playerSessionId;
+    acceptPlayerSessionMessage.gameSessionId = gameSessionId;
+
+    await this.emit(acceptPlayerSessionMessage);
   }
 
   /**
@@ -311,15 +338,18 @@ export class Network {
           message.toString(),
           (success: boolean, response?: string): void => {
             debug(
-              "response received for '%s' event: (%s, %s)",
-              message.getTypeName(),
-              success,
-              response
+              `response received for '${message.getTypeName()}' event: (${success}, ${response})`
             );
             if (!success) {
-              // TODO: Parse the response and give an actually useful error
-              // that was received from GameLift service.
-              reject(new ServiceCallFailedError());
+              let message: string = undefined;
+              const gameLiftResponseMessage: gamelift.GameLiftResponse = new _gamelift.GameLiftResponse();
+              if (
+                this.parseJsonDataIntoMessage(gameLiftResponseMessage, response)
+              ) {
+                message = gameLiftResponseMessage.errorMessage;
+              }
+
+              reject(new ServiceCallFailedError(message));
             } else {
               resolve();
             }
@@ -327,6 +357,34 @@ export class Network {
         );
       }
     );
+  }
+
+  /**
+   * Parse the given data into the message with error checking.
+   *
+   * @param message - Message object whose fields will be filled in.
+   * @param data - JSON formatted data to fill the fields of the message.
+   */
+  private parseJsonDataIntoMessage(
+    message: gamelift.Message,
+    data: string
+  ): boolean {
+    let success = false;
+    try {
+      success = message.fromJsonString(Buffer.from(data));
+    } catch (error) {
+      debug(
+        `error occurred while attempting to parse '${message.getTypeName()}' event message`
+      );
+      return false;
+    }
+
+    if (!success) {
+      debug(`failed to parse '${message.getTypeName()}' event message data`);
+      return false;
+    }
+
+    return true;
   }
 
   private socket: SocketIOClient.Socket;

@@ -29,14 +29,16 @@ const debug = _debug("gamelift.io:index");
  *
  * [CreatePlayerSession]: https://docs.aws.amazon.com/gamelift/latest/apireference/API_CreatePlayerSession.html
  */
-export function acceptPlayerSession(playerSessionId: string) {
+export async function acceptPlayerSession(
+  playerSessionId: string
+): Promise<void> {
   const serverState = <GameLiftServerState>GameLiftServerState.getInstance();
 
   if (!serverState) {
     throw new NotInitializedError();
   }
 
-  serverState.acceptPlayerSession(playerSessionId);
+  await serverState.acceptPlayerSession(playerSessionId);
 }
 
 /**

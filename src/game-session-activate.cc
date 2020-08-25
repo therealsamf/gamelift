@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 
+#include <napi.h>
 #include <sdk.pb.h>
 // clang-format on
 

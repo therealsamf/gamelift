@@ -1,10 +1,13 @@
 
 #include <napi.h>
+
 #include "accept-player-session.hh"
 #include "activate-game-session.hh"
 #include "game-property.hh"
-#include "game-session.hh"
 #include "game-session-activate.hh"
+#include "game-session.hh"
+#include "gamelift-response.hh"
+#include "player-session.hh"
 #include "process-ready.hh"
 #include "update-game-session.hh"
 #include "wrapped-message.hh"
@@ -26,6 +29,8 @@ Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
   exports = GameSession::Init(env, exports);
   exports = GameSessionActivate::Init(env, exports);
   exports = ActivateGameSession::Init(env, exports);
+  exports = PlayerSession::Init(env, exports);
+  exports = GameLiftResponse::Init(env, exports);
   exports = UpdateGameSession::Init(env, exports);
   exports = ProcessReady::Init(env, exports);
 
