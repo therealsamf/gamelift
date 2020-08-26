@@ -2,7 +2,20 @@
  * Interface to communication with the GameLift service.
  */
 
-import type gamelift from "gamelift";
+import type {
+  GetInstanceCertificateResponse,
+  GetInstanceCertificate,
+  GameSession,
+  UpdateGameSession,
+  ActivateGameSession,
+  ProcessReady,
+  GameSessionActivate,
+  AcceptPlayerSession,
+  DescribePlayerSessionsRequest,
+  DescribePlayerSessionsResponse,
+  Message,
+  GameLiftResponse,
+} from "gamelift";
 import bindings from "bindings";
 import SocketIOClient from "socket.io-client";
 import _debug from "debug";
@@ -41,12 +54,9 @@ export type Ack = (response: boolean) => void;
  * @internal
  */
 export interface HandlerFunctions {
-  onStartGameSessionHandler: (
-    gameSession: gamelift.GameSession,
-    ack: Ack
-  ) => void;
+  onStartGameSessionHandler: (gameSession: GameSession, ack: Ack) => void;
   onUpdateGameSessionHandler: (
-    updateGameSession: gamelift.UpdateGameSession,
+    updateGameSession: UpdateGameSession,
     ack: Ack
   ) => void;
   onTerminateSessionHandler: (terminationTime: number) => void;
@@ -176,7 +186,7 @@ export class Network {
   private onStartGameSession(data: Buffer, ack?: Ack): void {
     debug("socket received 'OnStartGameSession' event");
 
-    const activateGameSessionMessage: gamelift.ActivateGameSession = new _gamelift.ActivateGameSession();
+    const activateGameSessionMessage: ActivateGameSession = new _gamelift.ActivateGameSession();
 
     let success = false;
     try {
@@ -215,7 +225,7 @@ export class Network {
     data: Buffer,
     ack?: (response: boolean) => void
   ): void {
-    const updateGameSession: gamelift.UpdateGameSession = new _gamelift.UpdateGameSession();
+    const updateGameSession: UpdateGameSession = new _gamelift.UpdateGameSession();
 
     let success = false;
     try {
@@ -274,7 +284,7 @@ export class Network {
     port: number,
     logParameters?: LogParameters
   ): Promise<void> {
-    const processReadyMessage: gamelift.ProcessReady = new _gamelift.ProcessReady();
+    const processReadyMessage: ProcessReady = new _gamelift.ProcessReady();
     processReadyMessage.port = port;
 
     if (logParameters) {
@@ -292,7 +302,7 @@ export class Network {
    * @param gameSessionId - Identifier for the game session.
    */
   public async activateGameSession(gameSessionId: string): Promise<void> {
-    const gameSessionActivateMessage: gamelift.GameSessionActivate = new _gamelift.GameSessionActivate();
+    const gameSessionActivateMessage: GameSessionActivate = new _gamelift.GameSessionActivate();
 
     gameSessionActivateMessage.gameSessionId = gameSessionId;
 
@@ -313,12 +323,47 @@ export class Network {
     playerSessionId: string,
     gameSessionId: string
   ): Promise<void> {
-    const acceptPlayerSessionMessage: gamelift.AcceptPlayerSession = new _gamelift.AcceptPlayerSession();
+    const acceptPlayerSessionMessage: AcceptPlayerSession = new _gamelift.AcceptPlayerSession();
 
     acceptPlayerSessionMessage.playerSessionId = playerSessionId;
     acceptPlayerSessionMessage.gameSessionId = gameSessionId;
 
     await this.emit(acceptPlayerSessionMessage);
+  }
+
+  /**
+   * Request the GameLIft service to describe player sessions according to the
+   * given request.
+   *
+   * @param request - [DescribePlayerSessionsRequest] to send to the GameLift service.
+   *
+   * @return Filled-out response message from GameLift service.
+   *
+   * [DescribePlayerSessionsRequest]: https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-datatypes.html
+   */
+  public async describePlayerSessions(
+    request: DescribePlayerSessionsRequest
+  ): Promise<DescribePlayerSessionsResponse> {
+    const response: DescribePlayerSessionsResponse = new _gamelift.DescribePlayerSessionsResponse();
+
+    await this.emit(request, response);
+    return response;
+  }
+
+  /**
+   * Request the location of the files for creating a TLS secured server.
+   *
+   * @return Object with the properties for setting up a TLS secured server.
+   */
+  public async getInstanceCertificate(): Promise<
+    GetInstanceCertificateResponse
+  > {
+    const response: GetInstanceCertificateResponse = new _gamelift.GetInstanceCertificateResponse();
+    const message: GetInstanceCertificate = new _gamelift.GetInstanceCertificate();
+
+    await this.emit(message, response);
+
+    return response;
   }
 
   /**
@@ -328,7 +373,10 @@ export class Network {
    * @param eventName Name of the event that's being emitted.
    * @param message Procotol Buffer object that's serialized and sent as data.
    */
-  public async emit(message: gamelift.Message): Promise<void> {
+  public async emit(
+    message: Message,
+    responseMessage?: Message
+  ): Promise<void> {
     debug("sending '%s' emit to GameLift", message.getTypeName());
 
     await new Promise(
@@ -342,7 +390,7 @@ export class Network {
             );
             if (!success) {
               let message: string = undefined;
-              const gameLiftResponseMessage: gamelift.GameLiftResponse = new _gamelift.GameLiftResponse();
+              const gameLiftResponseMessage: GameLiftResponse = new _gamelift.GameLiftResponse();
               if (
                 this.parseJsonDataIntoMessage(gameLiftResponseMessage, response)
               ) {
@@ -351,6 +399,27 @@ export class Network {
 
               reject(new ServiceCallFailedError(message));
             } else {
+              // This emitted request is meant for a response, so fill it in
+              // before resolving the promise.
+              if (responseMessage) {
+                // If GameLift was supposed to send a response but none was sent throw error
+                if (!response) {
+                  reject(new ServiceCallFailedError("no response received"));
+                  return;
+                }
+
+                // GameLift response isn't valid for the given responseMessage
+                // type
+                if (!this.parseJsonDataIntoMessage(responseMessage, response)) {
+                  reject(
+                    new ServiceCallFailedError(
+                      `unable to parse response into '${responseMessage.getTypeName()}' message`
+                    )
+                  );
+                  return;
+                }
+                // At this point the response message has been populated.
+              }
               resolve();
             }
           }
@@ -365,10 +434,7 @@ export class Network {
    * @param message - Message object whose fields will be filled in.
    * @param data - JSON formatted data to fill the fields of the message.
    */
-  private parseJsonDataIntoMessage(
-    message: gamelift.Message,
-    data: string
-  ): boolean {
+  private parseJsonDataIntoMessage(message: Message, data: string): boolean {
     let success = false;
     try {
       success = message.fromJsonString(Buffer.from(data));

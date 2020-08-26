@@ -167,3 +167,6 @@ build
 # Generated documentation
 docs/*
 !docs/.gitkeep
+
+# Locally generated PEM-encoded TLS files
+*.pem

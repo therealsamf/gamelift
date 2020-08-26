@@ -73,10 +73,14 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gamelift.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/accept-player-session.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/activate-game-session.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/describe-player-sessions-request.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/describe-player-sessions-response.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/game-property.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/game-session.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/game-session-activate.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gamelift-response.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/get-instance-certificate.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/get-instance-certificate-response.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/player-session.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/process-ready.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/update-game-session.cc

@@ -14,6 +14,8 @@ namespace gamelift {
 using namespace com::amazon::whitewater::auxproxy;
 using Message = WrappedMessage<pbuffer::PlayerSession>;
 
+Napi::FunctionReference* PlayerSession::constructor = nullptr;
+
 Napi::Object PlayerSession::Init(Napi::Env env, Napi::Object exports) {
   Napi::Function func = DefineClass(
       env, "PlayerSession",
@@ -77,6 +79,8 @@ Napi::Object PlayerSession::Init(Napi::Env env, Napi::Object exports) {
 
   Napi::FunctionReference* constructor = new Napi::FunctionReference();
   *constructor = Napi::Persistent(func);
+  PlayerSession::constructor = constructor;
+
   env.SetInstanceData(constructor);
 
   exports.Set("PlayerSession", func);

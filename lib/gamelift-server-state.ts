@@ -6,7 +6,13 @@
 
 import _debug from "debug";
 import SocketIOClient from "socket.io-client";
-import type { GameSession, UpdateGameSession } from "gamelift";
+import type {
+  DescribePlayerSessionsRequest,
+  GameSession,
+  UpdateGameSession,
+  DescribePlayerSessionsResponse,
+  GetInstanceCertificateResponse,
+} from "gamelift";
 
 import {
   AlreadyInitializedError,
@@ -190,6 +196,35 @@ export class GameLiftServerState extends GameLiftCommonState {
   private gameSessionId: string;
 
   /**
+   * Accessor for the {@link gameSessionId}.
+   *
+   * @internal
+   * @return Value of the `gameSessionId` if it's set.
+   */
+  public getGameSessionId(): string {
+    if (!this.gameSessionId) {
+      throw new NoGameSessionError();
+    }
+
+    return this.gameSessionId;
+  }
+
+  /**
+   * Send a message to the GameLift service asking for the TLS certicates/keys.
+   *
+   * @return Object with the properties for setting up a TLS secured server.
+   */
+  public async getInstanceCertificate(): Promise<
+    GetInstanceCertificateResponse
+  > {
+    if (!this.assertNetworkInitialized()) {
+      throw new GameLiftServerNotInitializedError();
+    }
+
+    return await this.networking.getInstanceCertificate();
+  }
+
+  /**
    * Create the Server state instance and set it as the singleton for the application.
    *
    * @internal
@@ -333,6 +368,26 @@ export class GameLiftServerState extends GameLiftCommonState {
       playerSessionId,
       this.gameSessionId
     );
+  }
+
+  /**
+   * Retrieve a list of player sessions from GameLift service according to the given request
+   *
+   * @internal
+   * @param request - Details the parameter for the search of player sessions.
+   *
+   * @return Result of the API call from GameLift service.
+   */
+  public async describePlayerSessions(
+    request: DescribePlayerSessionsRequest
+  ): Promise<DescribePlayerSessionsResponse> {
+    debug("initiating DescribePlayerSessionsRequest");
+
+    if (!this.assertNetworkInitialized()) {
+      throw new GameLiftServerNotInitializedError();
+    }
+
+    return await this.networking.describePlayerSessions(request);
   }
 
   /**

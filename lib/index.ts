@@ -3,8 +3,13 @@
  */
 
 import _debug from "debug";
+import {
+  DescribePlayerSessionsRequest,
+  DescribePlayerSessionsResponse,
+  GetInstanceCertificateResponse,
+} from "gamelift";
 
-import { NotInitializedError } from "./exceptions";
+import { NotInitializedError, ProcessNotReadyError } from "./exceptions";
 import {
   GameLiftServerState,
   GameLiftCommonState,
@@ -60,51 +65,95 @@ export async function activateGameSession() {
 }
 
 /**
- * This data type is used to specify which player session(s) to retrieve. You can use
- * it as follows:
- *
- *  * Provide a PlayerSessionId to request a specific player session.
- *  * Provide a GameSessionId to request all player sessions in the specified game
- * session.
- *  * Provide a PlayerId to request all player sessions for the specified player.
- *
- * For large collections of player sessions, use the pagination parameters to retrieve
- * results in sequential blocks.
- */
-interface DescribePlayerSessionsRequest {
-  /**
-   * Unique game session identifier.
-   *
-   * Use this parameter to request all player sessions for the specified game session.
-   * Game session ID format is as follows: `arn:aws:gamelift:<region>::gamesession/fleet-<fleet ID>/<ID string>`.
-   * The value of <ID string> is either a custom ID string or (if one was specified
-   * when the game session was created) a generated string.
-   */
-  gameSessionId: string;
-
-  limit: number;
-
-  nextToken: string;
-  playerId: string;
-  playerSessionId: string;
-  playerSessionStatusFilter: "RESERVED" | "ACTIVE" | "COMPLETED" | "TIMEDOUT";
-}
-
-/**
  * Retrieves player session data, including settings, session metadata, and player
  * data.
  *
  * Use this action to get information for a single player session, for all player
- * sessions in a game session, or for all player sessions associated with a single
- * player ID.
+ * sessions in a game session, or for all player sessions associated with a
+ * single player ID.
  *
+ * @param request Request that details what results to query on.
+ *
+ * @return Response object from the GameLift service.
  */
-export function describePlayerSessions() {}
-export function getGameSessionId() {}
-export function getInstanceCertificate() {}
-export function getSdkVersion() {}
+export async function describePlayerSessions(
+  request: DescribePlayerSessionsRequest
+): Promise<DescribePlayerSessionsResponse> {
+  debug("attempting to describe player sessions according to given request");
+  const serverState = <GameLiftServerState>GameLiftServerState.getInstance();
+
+  if (!serverState) {
+    throw new NotInitializedError();
+  }
+
+  if (!serverState.processReady) {
+    throw new ProcessNotReadyError();
+  }
+
+  return await serverState.describePlayerSessions(request);
+}
+
+/**
+ * Retrieves a unique identifier for the game session currently being hosted
+ * by the server process, if the server process is active.
+ *
+ * The identifier is returned in ARN format:
+ * `arn:aws:gamelift:<region>::gamesession/fleet-<fleet ID>/<ID string>`.
+ *
+ * @return Current game session ID.
+ */
+export function getGameSessionId(): string {
+  debug("retrieving current game session ID");
+  const serverState = <GameLiftServerState>GameLiftServerState.getInstance();
+
+  if (!serverState) {
+    throw new NotInitializedError();
+  }
+
+  if (!serverState.processReady) {
+    throw new ProcessNotReadyError();
+  }
+
+  return serverState.getGameSessionId();
+}
+
+/**
+ * Retrieves the file location of a pem-encoded TLS certificate that is
+ * associated with the fleet and its instances.
+ *
+ * This certificate is generated when a new fleet is created with the
+ * certificate configuration set to GENERATED. Use this certificate to
+ * establish a secure connection with a game client and to encrypt
+ * client/server communication.
+ *
+ * @return Object with the properties for setting up a TLS secured server.
+ */
+export async function getInstanceCertificate(): Promise<
+  GetInstanceCertificateResponse
+> {
+  debug("querying for the filepaths for the TLS certs/keys");
+  const serverState = <GameLiftServerState>GameLiftServerState.getInstance();
+
+  if (!serverState) {
+    throw new NotInitializedError();
+  }
+
+  return await serverState.getInstanceCertificate();
+}
+
+/**
+ * Returns the current version number of the SDK in use.
+ */
+export function getSdkVersion(): string {
+  return GameLiftServerState.SDK_VERSION;
+}
+
 /** @hidden */
 export const getSDKVersion = getSdkVersion;
+
+/**
+ *
+ */
 export function getTerminationTime() {}
 
 /**

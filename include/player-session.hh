@@ -19,6 +19,10 @@ namespace gamelift {
  */
 class PlayerSession : public WrappedMessage<pbuffer::PlayerSession> {
  public:
+  static Napi::FunctionReference*
+      constructor; /**< Reference to the constructor for creating instances of
+                        this object in "Javascript-land". */
+
   /**
    * Initialize the PlayerSession class. This attaches the constructor to
    * the addon and allows objects to be instantiated from "Javascript-land".
@@ -42,6 +46,79 @@ class PlayerSession : public WrappedMessage<pbuffer::PlayerSession> {
    */
   PlayerSession(const Napi::CallbackInfo& info);
 };
+
+/**
+ * Convert the given Node-API value to a Protocol Buffer PlayerSession object.
+ *
+ * Note: This does **not do any type checking** since it can't really
+ * propagate back an error. Thus it's imperative that proper type checking be
+ * done on the passed value before hand.
+ *
+ * @param value Node-API value to convert into string.
+ *
+ * @return Protocol Buffer object representing the value contained within the
+ * given Node-API value.
+ */
+template <>
+pbuffer::PlayerSession ConvertValue(const Napi::Value& value) {
+  PlayerSession* player_session =
+      Napi::ObjectWrap<PlayerSession>::Unwrap(value.As<Napi::Object>());
+
+  return *player_session->message_;
+}
+
+/**
+ * Convert the given PlayerSession Protocol Buffer object into a Node-API
+ * compatible wrapped object.
+ *
+ * @param native Native Protocol Buffer object to convert.
+ *
+ * @return Node-API value that can be used from Javascript.
+ */
+template <>
+Napi::Value ConvertNative(Napi::Env& env, pbuffer::PlayerSession&& native,
+                          Napi::FunctionReference* constructor) {
+  if (!constructor) {
+    Napi::Error::New(env, "Internal Error: null constructor during conversion");
+    return env.Undefined();
+  }
+
+  Napi::Object object = constructor->New({});
+
+  PlayerSession* player_session = Napi::ObjectWrap<PlayerSession>::Unwrap(object);
+  if (env.IsExceptionPending()) {
+    env.GetAndClearPendingException().ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+
+  player_session->message_ = std::make_shared<pbuffer::PlayerSession>(native);
+
+  return object;
+}
+
+/**
+ * Convert the given PlayerSession Protocol Buffer object into a Node-API
+ * compatible wrapped object.
+ *
+ * @param native Native Protocol Buffer object to convert.
+ *
+ * @return Node-API value that can be used from Javascript.
+ */
+template <>
+bool CheckValue<pbuffer::PlayerSession>(const Napi::Value& value) {
+  if (!value.IsObject()) {
+    return false;
+  }
+
+  PlayerSession* player_session =
+      Napi::ObjectWrap<PlayerSession>::Unwrap(value.As<Napi::Object>());
+  if (value.Env().IsExceptionPending()) {
+    return false;
+  }
+
+  return true;
+}
+
 
 };  // namespace gamelift
 

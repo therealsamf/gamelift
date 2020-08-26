@@ -414,6 +414,151 @@ declare module "gamelift" {
   }
 
   /**
+   * This data type is used to specify which player session(s) to retrieve. You can use
+   * it as follows:
+   *
+   *  * Provide a PlayerSessionId to request a specific player session.
+   *  * Provide a GameSessionId to request all player sessions in the specified game
+   * session.
+   *  * Provide a PlayerId to request all player sessions for the specified player.
+   *
+   * For large collections of player sessions, use the pagination parameters to retrieve
+   * results in sequential blocks.
+   *
+   */
+  export class DescribePlayerSessionsRequest extends Message {
+    /**
+     * Unique game session identifier.
+     *
+     * Use this parameter to request all player sessions for the specified
+     * game session. Game session ID format is as follows:
+     * `arn:aws:gamelift:<region>::gamesession/fleet-<fleet ID>/<ID string>`.
+     * The value of <ID string> is either a custom ID string or (if one was
+     * specified when the game session was created) a generated string.
+     */
+    gameSessionId: string;
+
+    /**
+     * Maximum number of results to return.
+     *
+     * Use this parameter with
+     * {@link nextToken | `nextToken`} to get results as a set of sequential
+     * pages. If a player session ID is specified, this parameter is ignored.
+     */
+    limit: number;
+
+    /**
+     * Token indicating the start of the next sequential page of results.
+     *
+     * Use the token that is returned with a previous call to this action. To
+     * specify the start of the result set, do not specify a value. If a player
+     * session ID is specified, this parameter is ignored.
+     */
+    nextToken: string;
+
+    /**
+     * Unique identifier for a player.
+     *
+     * Player IDs are defined by the developer. See [Generating Player IDs].
+     *
+     * [Generating Player IDs]: https://docs.aws.amazon.com/gamelift/latest/developerguide/player-sessions-player-identifiers.html
+     */
+    playerId: string;
+
+    /**
+     * Unique identifier for a player session.
+     */
+    playerSessionId: string;
+
+    /**
+     * Player session status to filter results on.
+     *
+     * Possible player session statuses include the following:
+     *
+     *  * RESERVED – The player session request has been received, but the
+     * player has not yet connected to the server process and/or been
+     * validated.
+     *  * ACTIVE – The player has been validated by the server process and is
+     * currently connected.
+     *  * COMPLETED – The player connection has been dropped.
+     *  * TIMEDOUT – A player session request was received, but the player did
+     * not connect and/or was not validated within the time-out limit (60 seconds).
+     */
+    playerSessionStatusFilter: "RESERVED" | "ACTIVE" | "COMPLETED" | "TIMEDOUT";
+  }
+
+  /**
+   * Response from the GameLift service for a [DescribePlayerSessionsRequest].
+   *
+   * [DescribePlayerSessionsRequest]: https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-actions.html#integration-server-sdk-cpp-ref-describeplayersessions
+   */
+  export class DescribePlayerSessionsResponse extends Message {
+    /**
+     * Token that indicates where to resume retrieving results on the next
+     * call to this action. If no token is returned, these results represent
+     * the end of the list.
+     */
+    nextToken?: string;
+
+    /**
+     * A collection of objects containing properties for each player session
+     * that matches the request.
+     */
+    playerSessions: PlayerSession[];
+  }
+
+  type MessageNoJson = Omit<Message, "fromJsonString">;
+
+  /**
+   * Message for retrieving the locations of certicates & keys to setup a TLS session.
+   *
+   * For more information see [GetInstanceCertificate()].
+   *
+   * [GetInstanceCertificate()]: https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-actions.html#integration-server-sdk-cpp-ref-getinstancecertificate
+   *
+   * @internal
+   */
+  export class GetInstanceCertificate extends Message {
+  }
+
+  /**
+   * GameLift service response with the locations of the files necessary to
+   * setup a TLS secured server.
+   *
+   * For more information see [GetInstanceCertificate()].
+   *
+   * [GetInstanceCertificate()]: https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-actions.html#integration-server-sdk-cpp-ref-getinstancecertificate
+   *
+   */
+  export class GetInstanceCertificateResponse extends Message {
+    /**
+     * Filepath to the TLS certificate.
+     */
+    public certificatePath: string;
+
+    /**
+     * Filepath to the TLS certificate chain.
+     */
+    public certificateChainPath: string;
+
+    /**
+     * Filepath to the private key for the TLS certificate.
+     */
+    public privateKeyPath: string;
+
+    /**
+     * Hostname the certificate has been issued for.
+     */
+    public hostName: string;
+
+    /**
+     * Filepath to the root certificate.
+     */
+    public rootCertificatePath: string;
+
+  }
+
+  /**
    * Message from the GameLift service that game session has been updated.
    *
    * This message occurs when the [UpdateGameSession API] is utilized and is
