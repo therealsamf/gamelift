@@ -559,33 +559,64 @@ declare module "gamelift" {
   }
 
   /**
-   * Message from the GameLift service that game session has been updated.
+   * Message that notifies the GameLift service that the process is ending.
    *
-   * This message occurs when the [UpdateGameSession API] is utilized and is
-   * thus propagated back to the GameLift client process.
+   * See [`ProcessEnding()`] for more information.
    *
-   * [UpdatedGameSession API]: https://docs.aws.amazon.com/gamelift/latest/apireference/API_UpdateGameSession.html
+   * [`ProcessEnding()`]: https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-actions.html#integration-server-sdk-cpp-ref-processending
    *
+   * @internal
    */
-  export class UpdateGameSession extends Message {
+  export class ProcessEnding extends Message {
+  }
+
+  /**
+   * Message that notifies the GameLift service that the server process has shutdown the game session.
+   *
+   * See [`TerminateGameSession()`] for more information.
+   *
+   * [`TerminateGameSession()`]: https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-actions.html#integration-server-sdk-cpp-ref-terminategamesession
+   *
+   * @internal
+   */
+  export class GameSessionTerminate extends Message {
     /**
-     * New {@link GameSession} property carrying all the new fields.
+     * Denotes the game session that has been terminated.
+     *
+     * @internal
      */
-    public gameSession: GameSession;
+    public gameSessionId: string;
+  }
+
+  /**
+   * Message to notify the GameLift service the game session can no longer
+   * accept players or that it wants to accept some more.
+   *
+   * See [`UpdatePlayerSessionCreationPolicy()`] for more information.
+   *
+   * [`UpdatePlayerSessionCreationPolicy()`]: https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-actions.html#integration-server-sdk-cpp-ref-updateplayersessioncreationpolicy
+   *
+   * @internal
+   */
+  export class UpdatePlayerSessionCreationPolicy extends Message {
+    /**
+     * Denotes the game session whose player session creation policy is being updated.
+     *
+     * @internal
+     */
+    public gameSessionId: string;
 
     /**
-     * Optional string describing the reason for the update.
+     * String value indicating whether the game session accepts new players.
+     *
+     * Valid values include:
+     *
+     *  * **ACCEPT_ALL**: Accept all new player sessions.
+     *  * **DENY_ALL**: Deny all new player sessions.
+     *
+     * @internal
      */
-    public updateReason?:
-      | "MATCHMAKING_DATA_UPDATED"
-      | "BACKFILL_FAILED"
-      | "BACKFILL_TIMED_OUT"
-      | "BACKFILL_CANCELLED";
-
-    /**
-     * Ticket ID for the MatchBackfill request.
-     */
-    public backfillTicketId: string;
+    public newPlayerSessionCreationPolicy: string;
   }
 
   /**
@@ -612,9 +643,75 @@ declare module "gamelift" {
   }
 
   /**
+   * Message used to signal to the process to begin the attached game session.
+   *
+   * * This message occurs when the [CreateGameSession API] is utilized and is
+   * thus propagated back to the GameLift client process.
+   *
+   * [CreateGameSession API]: https://docs.aws.amazon.com/gamelift/latest/apireference/API_CreateGameSession.html
+   *
    * @internal
    */
   export class ActivateGameSession extends Message {
+    /**
+     * Game session the process needs to begin setting up for.
+     *
+     * @internal
+     */
     public gameSession: GameSession;
+  }
+
+  /**
+   * Message from the GameLift service that game session has been updated.
+   *
+   * This message occurs when the [UpdateGameSession API] is utilized and is
+   * thus propagated back to the GameLift client process.
+   *
+   * [UpdateGameSession API]: https://docs.aws.amazon.com/gamelift/latest/apireference/API_UpdateGameSession.html
+   *
+   */
+  export class UpdateGameSession extends Message {
+    /**
+     * New {@link GameSession} property carrying all the new fields.
+     */
+    public gameSession: GameSession;
+
+    /**
+     * Optional string describing the reason for the update.
+     */
+    public updateReason?:
+      | "MATCHMAKING_DATA_UPDATED"
+      | "BACKFILL_FAILED"
+      | "BACKFILL_TIMED_OUT"
+      | "BACKFILL_CANCELLED";
+
+    /**
+     * Ticket ID for the MatchBackfill request.
+     */
+    public backfillTicketId: string;
+  }
+
+  /**
+   * Message from the GameLift service that the server process is being
+   * shutdown
+   *
+   * A server process may be shut down for several reasons: (1) process poor
+   * health, (2) when an instance is being terminated during a scale-down
+   * event, or (3) when an instance is being terminated due to a
+   * [spot-instance interruption].
+   *
+   * [spot-instance interruption]: https://docs.aws.amazon.com/gamelift/latest/developerguide/spot-tasks.html
+   *
+   * @internal
+   */
+  export class TerminateProcess extends Message {
+
+    /**
+     * UNIX epoch denoting the time in seconds or -1 if the process may be
+     * terminated at any time.
+     *
+     * @internal
+     */
+    public terminationTime: number;
   }
 }

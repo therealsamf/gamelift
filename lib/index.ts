@@ -86,7 +86,8 @@ export async function describePlayerSessions(
     throw new NotInitializedError();
   }
 
-  if (!serverState.processReady) {
+  // @ts-ignore
+  if (!serverState.processReadyFlag) {
     throw new ProcessNotReadyError();
   }
 
@@ -110,7 +111,8 @@ export function getGameSessionId(): string {
     throw new NotInitializedError();
   }
 
-  if (!serverState.processReady) {
+  // @ts-ignore
+  if (!serverState.processReadyFlag) {
     throw new ProcessNotReadyError();
   }
 
@@ -152,9 +154,29 @@ export function getSdkVersion(): string {
 export const getSDKVersion = getSdkVersion;
 
 /**
+ * Returns the time that a server process is scheduled to be shut down, if a
+ * termination time is available.
  *
+ * A server process takes this action after receiving an
+ * {@link ProcessParameters.onProcessTerminate | `onProcessTerminate()`}
+ * callback from the GameLift service. A server process may be shut down for
+ * several reasons: (1) process poor health, (2) when an instance is being
+ * terminated during a scale-down event, or (3) when an instance is being
+ * terminated due to a [spot instance interruption].
+ *
+ * [spot instance interruption]: https://docs.aws.amazon.com/gamelift/latest/developerguide/spot-tasks.html
+ * [shutting down a server process]: https://docs.aws.amazon.com/gamelift/latest/developerguide/gamelift-sdk-server-api.html#gamelift-sdk-server-terminate
  */
-export function getTerminationTime() {}
+export function getTerminationTime(): number {
+  debug("retrieving the termination time");
+  const serverState = <GameLiftServerState>GameLiftServerState.getInstance();
+
+  if (!serverState) {
+    throw new NotInitializedError();
+  }
+
+  return serverState.getTerminationTime();
+}
 
 /**
  * Initializes the GameLift SDK.
@@ -175,7 +197,22 @@ export async function initSdk(): Promise<void> {
  */
 export const initSDK = initSdk;
 
-export function processEnding() {}
+/**
+ * Notifies the GameLift service that the server process is shutting down.
+ *
+ * The application should exit with a 0 error code.
+ */
+export async function processEnding(): Promise<void> {
+  debug("notifying GameLift of an ending process");
+
+  const serverState = <GameLiftServerState>GameLiftServerState.getInstance();
+
+  if (!serverState) {
+    throw new NotInitializedError();
+  }
+
+  await serverState.processEnding();
+}
 
 /**
  * Notifies the GameLift service that the server process is ready to host game
@@ -190,13 +227,76 @@ export function processEnding() {}
 export async function processReady(
   processParameters: ProcessParameters
 ): Promise<void> {
-  const serverInstance = GameLiftCommonState.getInstance() as GameLiftServerState;
+  debug("retrieving server state to mark as ready");
+  const serverState = GameLiftCommonState.getInstance() as GameLiftServerState;
+  if (!serverState) {
+    throw new NotInitializedError();
+  }
 
-  await serverInstance.processReady(processParameters);
+  await serverState.processReady(processParameters);
 }
-export function processReadyAsync() {}
+
+/**
+ * Notifies the GameLift service that a player with the specified player
+ * session ID has disconnected from the server process. In response, GameLift
+ * changes the player slot to available, which allows it to be assigned to a
+ * new player.
+ */
 export function removePlayerSession() {}
+
+/**
+ * Sends a request to find new players for open slots in a game session created
+ * with FlexMatch.
+ *
+ * See also the AWS SDK action [StartMatchBackfill()]. With this action, match
+ * backfill requests can be initiated by a game server process that is hosting
+ * the game session. Learn more about the FlexMatch backfill feature in
+ * [Backfill Existing Games with FlexMatch].
+ *
+ * This action is asynchronous. If new players are successfully matched, the
+ * GameLift service delivers updated matchmaker data using the callback
+ * function
+ * {@link ProcessParameters.onUpdateGameSession | `onUpdateGameSession()`}.
+ *
+ * [StartMatchBackfill()]: https://docs.aws.amazon.com/gamelift/latest/apireference/API_StartMatchBackfill.html
+ * [Backfill existing Games with FlexMatch]: https://docs.aws.amazon.com/gamelift/latest/developerguide/match-backfill.html
+ */
 export function startMatchBackfill() {}
+
+/**
+ * Cancels an active match backfill request that was created with
+ * {@link startMatchBackfill | `startMatchBackfill()`}.
+ *
+ * See also the AWS SDK action [`StopMatchmaking()`]. Learn more about the
+ * FlexMatch backfill feature in [Backfill Existing Games with FlexMatch].
+ *
+ * [Backfill Existing Games with FlexMatch]: https://docs.aws.amazon.com/gamelift/latest/developerguide/match-backfill.html
+ */
 export function stopMatchBackfill() {}
-export function terminateGameSession() {}
-export function updatePlayerSessionCreationPolicy() {}
+
+/**
+ * Notifies the GameLift service that the server process has shut down the
+ * game session.
+ *
+ * Since each server process hosts only one game session at a time, there's no
+ * need to specify which session. This action should be called at the end of
+ * the game session shutdown process. After calling this action, the server
+ * process can call {@link processReady | `processReady()`} to signal its
+ * availability to host a new game session. Alternatively it can call
+ * {@link processEnding | `processEnding()`} to shut down the server process
+ * and terminate the instance.
+ */
+export async function terminateGameSession(): Promise<void> {}
+
+/**
+ * Updates the current game session's ability to accept new player sessions.
+ * A game session can be set to either accept or deny all new player sessions.
+ * See also the AWS SDK action [UpdateGameSession()].
+ *
+ * [UpdateGameSession()]: https://docs.aws.amazon.com/gamelift/latest/apireference/API_UpdateGameSession.html
+ *
+ * @param newPlayerSessionPolicy - String value indicating whether the game session accepts new players.
+ */
+export async function updatePlayerSessionCreationPolicy(
+  newPlayerSessionPolicy: "ACCEPT_ALL" | "DENY_ALL"
+): Promise<void> {}

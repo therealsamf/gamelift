@@ -15,6 +15,8 @@ import type {
   DescribePlayerSessionsResponse,
   Message,
   GameLiftResponse,
+  TerminateProcess,
+  ProcessEnding,
 } from "gamelift";
 import bindings from "bindings";
 import SocketIOClient from "socket.io-client";
@@ -183,23 +185,12 @@ export class Network {
    * @param ack ACK function for alerting the GameLift service whether creation was
    *   successful.
    */
-  private onStartGameSession(data: Buffer, ack?: Ack): void {
+  private onStartGameSession(data: string, ack?: Ack): void {
     debug("socket received 'OnStartGameSession' event");
 
     const activateGameSessionMessage: ActivateGameSession = new _gamelift.ActivateGameSession();
 
-    let success = false;
-    try {
-      success = activateGameSessionMessage.fromJsonString(Buffer.from(data));
-    } catch (error) {
-      debug(
-        "error occurred while attempting to parse 'OnStartGameSession' event message"
-      );
-      return;
-    }
-
-    if (!success) {
-      debug("failed to parse 'OnStartGameSession' event message data");
+    if (!this.parseJsonDataIntoMessage(activateGameSessionMessage, data)) {
       return;
     }
 
@@ -222,23 +213,12 @@ export class Network {
    *   successful.
    */
   private onUpdateGameSession(
-    data: Buffer,
+    data: string,
     ack?: (response: boolean) => void
   ): void {
     const updateGameSession: UpdateGameSession = new _gamelift.UpdateGameSession();
 
-    let success = false;
-    try {
-      success = updateGameSession.fromString(data);
-    } catch (error) {
-      debug(
-        "error occurred while attempting to parse 'OnUpdateGameSession' event message"
-      );
-      return;
-    }
-
-    if (!success) {
-      debug("failed to parse 'OnUpdateGameSession' event message data");
+    if (!this.parseJsonDataIntoMessage(updateGameSession, data)) {
       return;
     }
 
@@ -249,18 +229,24 @@ export class Network {
   /**
    * Handle the "OnTerminateProcess" event from the GameLift service.
    *
-   * This will construct the TerminateProcessEvent object before passing it off to the
-   * user-defined handler.
+   * This will retrieve the termination time in UNIX epoch seconds before
+   * calling the handler.
    *
    * @internal
    * @param data Raw data received from the socket.io client.
-   * @param ack ACK function for alerting the GameLift service whether creation was
-   *   successful.
    */
-  private onTerminateProcess(
-    data: string,
-    ack: (response: boolean) => void
-  ): void {}
+  private onTerminateProcess(data: string): void {
+    const terminateProcessMessage: TerminateProcess = new _gamelift.TerminateProcess();
+
+    if (!this.parseJsonDataIntoMessage(terminateProcessMessage, data)) {
+      // If unable to determine the termination time then default value is now + 4.5 minutes
+      terminateProcessMessage.terminationTime = Date.now() / 1000 + 4.5 * 60;
+    }
+
+    this.handler.onTerminateSessionHandler(
+      terminateProcessMessage.terminationTime
+    );
+  }
 
   /**
    * Send the given health status to the GameLift service.
@@ -292,6 +278,16 @@ export class Network {
     }
 
     await this.emit(processReadyMessage);
+  }
+
+  /**
+   *
+   * @param gameSessionId
+   */
+  public async processEnding(): Promise<void> {
+    const processEndingMessage: ProcessEnding = new _gamelift.ProcessEnding();
+
+    await this.emit(processEndingMessage);
   }
 
   /**
@@ -392,6 +388,8 @@ export class Network {
               let message: string = undefined;
               const gameLiftResponseMessage: GameLiftResponse = new _gamelift.GameLiftResponse();
               if (
+                response !== undefined &&
+                response !== null &&
                 this.parseJsonDataIntoMessage(gameLiftResponseMessage, response)
               ) {
                 message = gameLiftResponseMessage.errorMessage;

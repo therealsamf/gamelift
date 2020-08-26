@@ -210,6 +210,24 @@ export class GameLiftServerState extends GameLiftCommonState {
   }
 
   /**
+   * Timestamp as a UNIX epock denoting the termination time
+   *
+   * @internal
+   */
+  private terminationTime: number;
+
+  /**
+   * Accessor for the {@link terminationTime}.
+   *
+   * @internal
+   * @return UNIX epock representing the termination time for the process to
+   * be shut down.
+   */
+  public getTerminationTime(): number {
+    return this.terminationTime;
+  }
+
+  /**
    * Send a message to the GameLift service asking for the TLS certicates/keys.
    *
    * @return Object with the properties for setting up a TLS secured server.
@@ -281,6 +299,22 @@ export class GameLiftServerState extends GameLiftCommonState {
     );
 
     this.healthCheck();
+  }
+
+  /**
+   * Begin the process shutdown sequence before notifying the GameLift service.
+   *
+   * @internal
+   */
+  public async processEnding(): Promise<void> {
+    debug("reverting process ready");
+    this.processReadyFlag = false;
+
+    if (!this.assertNetworkInitialized()) {
+      throw new GameLiftServerNotInitializedError();
+    }
+
+    await this.networking.processEnding();
   }
 
   /**
@@ -504,7 +538,23 @@ export class GameLiftServerState extends GameLiftCommonState {
    */
   private onProcessTerminate?: OnProcessTerminateCallback;
 
-  public onTerminateSessionHandler(): void {}
+  /**
+   * Handler for the the "OnTerminateProcess" event from GameLift service.
+   *
+   * @param terminationTime - timestamp denoting the termination time.
+   */
+  public onTerminateSessionHandler(terminationTime: number): void {
+    //If processReady was never invoked, the callback for processTerminate is
+    // null.
+    if (!this.processReadyFlag) {
+      return;
+    }
+    this.terminationTime = terminationTime;
+
+    if (this.onProcessTerminate) {
+      this.onProcessTerminate();
+    }
+  }
 
   /**
    * Reference to the callback for the "OnHealthCheck" event.
