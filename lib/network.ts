@@ -2,7 +2,7 @@
  * Interface to communication with the GameLift service.
  */
 
-import type {
+import {
   GetInstanceCertificateResponse,
   GetInstanceCertificate,
   GameSession,
@@ -13,19 +13,20 @@ import type {
   AcceptPlayerSession,
   DescribePlayerSessionsRequest,
   DescribePlayerSessionsResponse,
-  Message,
   GameLiftResponse,
   TerminateProcess,
   ProcessEnding,
-} from "gamelift";
-import bindings from "bindings";
-import SocketIOClient from "socket.io-client";
+  GameSessionTerminate,
+  UpdatePlayerSessionCreationPolicy,
+  ReportHealth,
+  RemovePlayerSession,
+} from "@kontest/gamelift-pb";
 import _debug from "debug";
+import { Message, Type, Writer } from "protobufjs";
 
 import type { LogParameters } from "./types";
 
-const debug = _debug("gamelift.io:network");
-const _gamelift = bindings("gamelift.node");
+const debug = _debug("gamelift:network");
 
 /**
  * @hidden
@@ -188,11 +189,9 @@ export class Network {
   private onStartGameSession(data: string, ack?: Ack): void {
     debug("socket received 'OnStartGameSession' event");
 
-    const activateGameSessionMessage: ActivateGameSession = new _gamelift.ActivateGameSession();
-
-    if (!this.parseJsonDataIntoMessage(activateGameSessionMessage, data)) {
-      return;
-    }
+    const activateGameSessionMessage = this.parseJsonDataIntoMessage<
+      ActivateGameSession
+    >(ActivateGameSession, data);
 
     const gameSession = activateGameSessionMessage.gameSession;
 
@@ -216,11 +215,10 @@ export class Network {
     data: string,
     ack?: (response: boolean) => void
   ): void {
-    const updateGameSession: UpdateGameSession = new _gamelift.UpdateGameSession();
-
-    if (!this.parseJsonDataIntoMessage(updateGameSession, data)) {
-      return;
-    }
+    const updateGameSession = this.parseJsonDataIntoMessage<UpdateGameSession>(
+      UpdateGameSession,
+      data
+    );
 
     const _ack: Ack = ack || NOOP;
     this.handler.onUpdateGameSessionHandler(updateGameSession, _ack);
@@ -236,9 +234,18 @@ export class Network {
    * @param data Raw data received from the socket.io client.
    */
   private onTerminateProcess(data: string): void {
-    const terminateProcessMessage: TerminateProcess = new _gamelift.TerminateProcess();
+    let terminateProcessMessage: TerminateProcess = null;
 
-    if (!this.parseJsonDataIntoMessage(terminateProcessMessage, data)) {
+    try {
+      terminateProcessMessage = this.parseJsonDataIntoMessage<TerminateProcess>(
+        TerminateProcess,
+        data
+      );
+    } catch (error) {
+      debug(
+        "setting default termination time due to parsing error of a 'TerminateProcess' message"
+      );
+      terminateProcessMessage = new TerminateProcess();
       // If unable to determine the termination time then default value is now + 4.5 minutes
       terminateProcessMessage.terminationTime = Date.now() / 1000 + 4.5 * 60;
     }
@@ -254,7 +261,15 @@ export class Network {
    * @internal
    * @param healthy
    */
-  public reportHealth(healthy: boolean): void {}
+  public async reportHealth(healthy: boolean): Promise<void> {
+    const reportHealthMessage = new ReportHealth();
+    reportHealthMessage.healthStatus = healthy;
+
+    await this.emit(
+      ReportHealth.encode(reportHealthMessage),
+      ReportHealth.$type
+    );
+  }
 
   /**
    * Send the message to the GameLift service that the process is ready for receiving
@@ -270,24 +285,32 @@ export class Network {
     port: number,
     logParameters?: LogParameters
   ): Promise<void> {
-    const processReadyMessage: ProcessReady = new _gamelift.ProcessReady();
+    const processReadyMessage = new ProcessReady();
     processReadyMessage.port = port;
 
     if (logParameters) {
       processReadyMessage.logPathsToUpload = logParameters.logPaths || [];
     }
 
-    await this.emit(processReadyMessage);
+    await this.emit(
+      ProcessReady.encode(processReadyMessage),
+      ProcessReady.$type
+    );
   }
 
   /**
+   * Notifies the GameLift service that the process is shutting down.
    *
+   * @internal
    * @param gameSessionId
    */
   public async processEnding(): Promise<void> {
-    const processEndingMessage: ProcessEnding = new _gamelift.ProcessEnding();
+    const processEndingMessage = new ProcessEnding();
 
-    await this.emit(processEndingMessage);
+    await this.emit(
+      ProcessEnding.encode(processEndingMessage),
+      ProcessEnding.$type
+    );
   }
 
   /**
@@ -298,11 +321,32 @@ export class Network {
    * @param gameSessionId - Identifier for the game session.
    */
   public async activateGameSession(gameSessionId: string): Promise<void> {
-    const gameSessionActivateMessage: GameSessionActivate = new _gamelift.GameSessionActivate();
+    const gameSessionActivateMessage = new GameSessionActivate();
 
     gameSessionActivateMessage.gameSessionId = gameSessionId;
 
-    await this.emit(gameSessionActivateMessage);
+    await this.emit(
+      GameSessionActivate.encode(gameSessionActivateMessage),
+      GameSessionActivate.$type
+    );
+  }
+
+  /**
+   * Send a message to notify the GameLift service that the game session has
+   * been terminate and is ready to be allocated again.
+   *
+   * @internal
+   * @param gameSessionId - Identifier for the game session.
+   */
+  public async terminateGameSession(gameSessionId: string): Promise<void> {
+    const gameSessionTerminateMessage = new GameSessionTerminate();
+
+    gameSessionTerminateMessage.gameSessionId = gameSessionId;
+
+    await this.emit(
+      GameSessionTerminate.encode(gameSessionTerminateMessage),
+      GameSessionTerminate.$type
+    );
   }
 
   /**
@@ -319,18 +363,45 @@ export class Network {
     playerSessionId: string,
     gameSessionId: string
   ): Promise<void> {
-    const acceptPlayerSessionMessage: AcceptPlayerSession = new _gamelift.AcceptPlayerSession();
+    const acceptPlayerSessionMessage = new AcceptPlayerSession();
 
     acceptPlayerSessionMessage.playerSessionId = playerSessionId;
     acceptPlayerSessionMessage.gameSessionId = gameSessionId;
 
-    await this.emit(acceptPlayerSessionMessage);
+    await this.emit(
+      AcceptPlayerSession.encode(acceptPlayerSessionMessage),
+      AcceptPlayerSession.$type
+    );
+  }
+
+  /**
+   * Notify the GameLift service the specified player has left the game and
+   * their spot is open for new players.
+   *
+   * @internal
+   * @param playerSessionId
+   * @param gameSessionId
+   */
+  public async removePlayerSession(
+    playerSessionId: string,
+    gameSessionId: string
+  ): Promise<void> {
+    const removePlayerSessionMessage = new RemovePlayerSession();
+
+    removePlayerSessionMessage.playerSessionId = playerSessionId;
+    removePlayerSessionMessage.gameSessionId = gameSessionId;
+
+    await this.emit(
+      RemovePlayerSession.encode(removePlayerSessionMessage),
+      RemovePlayerSession.$type
+    );
   }
 
   /**
    * Request the GameLIft service to describe player sessions according to the
    * given request.
    *
+   * @internal
    * @param request - [DescribePlayerSessionsRequest] to send to the GameLift service.
    *
    * @return Filled-out response message from GameLift service.
@@ -340,10 +411,39 @@ export class Network {
   public async describePlayerSessions(
     request: DescribePlayerSessionsRequest
   ): Promise<DescribePlayerSessionsResponse> {
-    const response: DescribePlayerSessionsResponse = new _gamelift.DescribePlayerSessionsResponse();
+    return this.emit<DescribePlayerSessionsResponse>(
+      DescribePlayerSessionsRequest.encode(request),
+      DescribePlayerSessionsRequest.$type,
+      DescribePlayerSessionsResponse
+    );
+  }
 
-    await this.emit(request, response);
-    return response;
+  /**
+   * Send message to the GameLift service that updates the player session
+   * creation policy.
+   *
+   * For more information look at [`UpdatePlayerSessionCreationPolicy()`].
+   *
+   * [`UpdatePlayerSessionCreationPolicy()`]: https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-actions.html#integration-server-sdk-cpp-ref-updateplayersessioncreationpolicy
+   * @internal
+   * @param gameSessionId - Game session to update the policy for.
+   * @param newPlayerSessionCreationPolicy - New policy for the specified game session.
+   */
+  public async updatePlayerSessionCreationPolicy(
+    gameSessionId: string,
+    newPlayerSessionCreationPolicy: "ACCEPT_ALL" | "DENY_ALL"
+  ): Promise<void> {
+    const updatePlayerSessionCreationPolicyMessage = new UpdatePlayerSessionCreationPolicy();
+
+    updatePlayerSessionCreationPolicyMessage.gameSessionId = gameSessionId;
+    updatePlayerSessionCreationPolicyMessage.newPlayerSessionCreationPolicy = newPlayerSessionCreationPolicy;
+
+    await this.emit(
+      UpdatePlayerSessionCreationPolicy.encode(
+        updatePlayerSessionCreationPolicyMessage
+      ),
+      UpdatePlayerSessionCreationPolicy.$type
+    );
   }
 
   /**
@@ -354,12 +454,13 @@ export class Network {
   public async getInstanceCertificate(): Promise<
     GetInstanceCertificateResponse
   > {
-    const response: GetInstanceCertificateResponse = new _gamelift.GetInstanceCertificateResponse();
-    const message: GetInstanceCertificate = new _gamelift.GetInstanceCertificate();
+    const message = new GetInstanceCertificate();
 
-    await this.emit(message, response);
-
-    return response;
+    return this.emit<GetInstanceCertificateResponse>(
+      GetInstanceCertificate.encode(message),
+      GetInstanceCertificate.$type,
+      GetInstanceCertificateResponse
+    );
   }
 
   /**
@@ -369,56 +470,65 @@ export class Network {
    * @param eventName Name of the event that's being emitted.
    * @param message Procotol Buffer object that's serialized and sent as data.
    */
-  public async emit(
-    message: Message,
-    responseMessage?: Message
-  ): Promise<void> {
-    debug("sending '%s' emit to GameLift", message.getTypeName());
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  public async emit<T extends Message<T> = Message<object>>(
+    messageWriter: Writer,
+    messageType: Type,
+    responseMessage?: typeof Message
+  ): Promise<T> {
+    debug(`sending '${messageType.name}' emit to GameLift`);
 
-    await new Promise(
-      (resolve: () => void, reject: (error?: Error) => void): void => {
+    return new Promise<T>(
+      (resolve: (value?: T) => void, reject: (error?: Error) => void): void => {
         this.socket.emit(
-          message.getTypeName(),
-          message.toString(),
+          messageType.fullName,
+          messageWriter.finish(),
           (success: boolean, response?: string): void => {
             debug(
-              `response received for '${message.getTypeName()}' event: (${success}, ${response})`
+              `response received for '${messageType.name}' event: (${success}, ${response})`
             );
             if (!success) {
               let message: string = undefined;
-              const gameLiftResponseMessage: GameLiftResponse = new _gamelift.GameLiftResponse();
-              if (
-                response !== undefined &&
-                response !== null &&
-                this.parseJsonDataIntoMessage(gameLiftResponseMessage, response)
-              ) {
-                message = gameLiftResponseMessage.errorMessage;
+              const gameliftResponse = this.parseJsonDataIntoMessage<
+                GameLiftResponse
+              >(GameLiftResponse, response);
+
+              if (response !== undefined && response !== null) {
+                message = gameliftResponse.errorMessage;
               }
 
               reject(new ServiceCallFailedError(message));
-            } else {
-              // This emitted request is meant for a response, so fill it in
-              // before resolving the promise.
-              if (responseMessage) {
-                // If GameLift was supposed to send a response but none was sent throw error
-                if (!response) {
-                  reject(new ServiceCallFailedError("no response received"));
-                  return;
-                }
+              return;
+            }
 
-                // GameLift response isn't valid for the given responseMessage
-                // type
-                if (!this.parseJsonDataIntoMessage(responseMessage, response)) {
-                  reject(
-                    new ServiceCallFailedError(
-                      `unable to parse response into '${responseMessage.getTypeName()}' message`
-                    )
-                  );
-                  return;
-                }
-                // At this point the response message has been populated.
+            // This emitted request is meant for a response, so fill it in
+            // before resolving the promise.
+            if (responseMessage) {
+              // If GameLift was supposed to send a response but none was sent throw error
+              if (!response) {
+                reject(new ServiceCallFailedError("no response received"));
+                return;
               }
-              resolve();
+
+              // GameLift response isn't valid for the given responseMessage
+              // type
+              let responseResult: T = null;
+              try {
+                responseResult = this.parseJsonDataIntoMessage<T>(
+                  responseMessage,
+                  response
+                );
+              } catch (error) {
+                reject(
+                  new ServiceCallFailedError(
+                    `unable to parse response into '${responseMessage.$type.name}' message: ${error}`
+                  )
+                );
+                return;
+              }
+              resolve(responseResult);
+            } else {
+              resolve(null);
             }
           }
         );
@@ -432,23 +542,27 @@ export class Network {
    * @param message - Message object whose fields will be filled in.
    * @param data - JSON formatted data to fill the fields of the message.
    */
-  private parseJsonDataIntoMessage(message: Message, data: string): boolean {
-    let success = false;
+  private parseJsonDataIntoMessage<T extends Message<T>>(
+    message: typeof Message,
+    data: string
+  ): T {
+    let result: Message<T> = null;
     try {
-      success = message.fromJsonString(Buffer.from(data));
+      result = message.fromObject(JSON.parse(data));
     } catch (error) {
       debug(
-        `error occurred while attempting to parse '${message.getTypeName()}' event message`
+        `error occurred while attempting to parse '${message.$type.name}' event message`
       );
-      return false;
+      return null;
     }
 
-    if (!success) {
-      debug(`failed to parse '${message.getTypeName()}' event message data`);
-      return false;
+    if (!result) {
+      debug(`failed to parse '${message.$type.name}' event message data`);
     }
 
-    return true;
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    return result;
   }
 
   private socket: SocketIOClient.Socket;

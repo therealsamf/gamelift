@@ -7,7 +7,7 @@ import {
   DescribePlayerSessionsRequest,
   DescribePlayerSessionsResponse,
   GetInstanceCertificateResponse,
-} from "gamelift";
+} from "@kontest/gamelift-pb";
 
 import { NotInitializedError, ProcessNotReadyError } from "./exceptions";
 import {
@@ -17,7 +17,7 @@ import {
 } from "./gamelift-server-state";
 
 /** @hidden */
-const debug = _debug("gamelift.io:index");
+const debug = _debug("gamelift:index");
 
 /**
  * Notify the GameLift service that a player with the specified player session ID has
@@ -53,7 +53,7 @@ export async function acceptPlayerSession(
  * This action should be called as part of the onStartGameSession() callback function,
  * after all game session initialization has been completed.
  */
-export async function activateGameSession() {
+export async function activateGameSession(): Promise<void> {
   debug("activating the current game session");
   const serverState = <GameLiftServerState>GameLiftServerState.getInstance();
 
@@ -86,6 +86,7 @@ export async function describePlayerSessions(
     throw new NotInitializedError();
   }
 
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   if (!serverState.processReadyFlag) {
     throw new ProcessNotReadyError();
@@ -111,6 +112,7 @@ export function getGameSessionId(): string {
     throw new NotInitializedError();
   }
 
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   if (!serverState.processReadyFlag) {
     throw new ProcessNotReadyError();
@@ -238,11 +240,28 @@ export async function processReady(
 
 /**
  * Notifies the GameLift service that a player with the specified player
- * session ID has disconnected from the server process. In response, GameLift
- * changes the player slot to available, which allows it to be assigned to a
- * new player.
+ * session ID has disconnected from the server process.
+ *
+ * In response, GameLift changes the player slot to available, which allows it
+ * to be assigned to a new player.
  */
-export function removePlayerSession() {}
+export async function removePlayerSession(
+  playerSessionId: string
+): Promise<void> {
+  debug(`removing player session '${playerSessionId}'`);
+  const serverState = GameLiftCommonState.getInstance() as GameLiftServerState;
+  if (!serverState) {
+    throw new NotInitializedError();
+  }
+
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  if (!serverState.processReadyFlag) {
+    throw new ProcessNotReadyError();
+  }
+
+  await serverState.removePlayerSession(playerSessionId);
+}
 
 /**
  * Sends a request to find new players for open slots in a game session created
@@ -270,6 +289,7 @@ export function startMatchBackfill() {}
  * See also the AWS SDK action [`StopMatchmaking()`]. Learn more about the
  * FlexMatch backfill feature in [Backfill Existing Games with FlexMatch].
  *
+ * [`StopMatchmaking()`]: https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-actions.html#integration-server-sdk-cpp-ref-stopmatchbackfill
  * [Backfill Existing Games with FlexMatch]: https://docs.aws.amazon.com/gamelift/latest/developerguide/match-backfill.html
  */
 export function stopMatchBackfill() {}
@@ -286,7 +306,15 @@ export function stopMatchBackfill() {}
  * {@link processEnding | `processEnding()`} to shut down the server process
  * and terminate the instance.
  */
-export async function terminateGameSession(): Promise<void> {}
+export async function terminateGameSession(): Promise<void> {
+  debug("terminating game session");
+  const serverState = GameLiftCommonState.getInstance() as GameLiftServerState;
+  if (!serverState) {
+    throw new NotInitializedError();
+  }
+
+  await serverState.terminateGameSession();
+}
 
 /**
  * Updates the current game session's ability to accept new player sessions.
@@ -299,4 +327,12 @@ export async function terminateGameSession(): Promise<void> {}
  */
 export async function updatePlayerSessionCreationPolicy(
   newPlayerSessionPolicy: "ACCEPT_ALL" | "DENY_ALL"
-): Promise<void> {}
+): Promise<void> {
+  debug("updating player session creation policy");
+  const serverState = GameLiftCommonState.getInstance() as GameLiftServerState;
+  if (!serverState) {
+    throw new NotInitializedError();
+  }
+
+  await serverState.updatePlayerSessionCreationPolicy(newPlayerSessionPolicy);
+}

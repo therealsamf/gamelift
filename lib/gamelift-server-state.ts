@@ -12,7 +12,7 @@ import type {
   UpdateGameSession,
   DescribePlayerSessionsResponse,
   GetInstanceCertificateResponse,
-} from "gamelift";
+} from "@kontest/gamelift-pb";
 
 import {
   AlreadyInitializedError,
@@ -24,7 +24,7 @@ import {
 import { Network, Ack } from "./network";
 import type { LogParameters } from "./types";
 
-const debug = _debug("gamelift.io:gamelift-server-state");
+const debug = _debug("gamelift:gamelift-server-state");
 
 /**
  * Callback necessary for the "OnStartGameSession" event.
@@ -239,7 +239,7 @@ export class GameLiftServerState extends GameLiftCommonState {
       throw new GameLiftServerNotInitializedError();
     }
 
-    return await this.networking.getInstanceCertificate();
+    return this.networking.getInstanceCertificate();
   }
 
   /**
@@ -350,11 +350,9 @@ export class GameLiftServerState extends GameLiftCommonState {
 
     debug("running health check");
     Promise.race<Promise<boolean>>([this.onHealthCheck(), timerPromise])
-      .then(this.networking.reportHealth)
+      .then((healthy: boolean) => this.networking.reportHealth(healthy))
       .catch((error?: Error): void => {
-        // eslint-disable-line @typescript-eslint/no-unused-vars
-        debug("error occurred during healthcheck");
-        // log error
+        debug(`error occurred during healthcheck: ${error}`);
       });
   }
 
@@ -383,6 +381,23 @@ export class GameLiftServerState extends GameLiftCommonState {
   }
 
   /**
+   * Terminate the currently running game session.
+   *
+   * This allows the process to be allocated another game session.
+   */
+  public async terminateGameSession(): Promise<void> {
+    if (!this.assertNetworkInitialized()) {
+      throw new GameLiftServerNotInitializedError();
+    }
+
+    if (!this.gameSessionId) {
+      throw new NoGameSessionError();
+    }
+
+    await this.networking.terminateGameSession(this.gameSessionId);
+  }
+
+  /**
    * Accept the player session by the given identifier.
    *
    * @internal
@@ -399,6 +414,28 @@ export class GameLiftServerState extends GameLiftCommonState {
     }
 
     await this.networking.acceptPlayerSession(
+      playerSessionId,
+      this.gameSessionId
+    );
+  }
+
+  /**
+   * Remove the player session from the game session so that it can be
+   * utilized by another player.
+   *
+   * @param playerSessionId - Denotes the player session to remove
+   * @internal
+   */
+  public async removePlayerSession(playerSessionId: string): Promise<void> {
+    if (!this.assertNetworkInitialized()) {
+      throw new GameLiftServerNotInitializedError();
+    }
+
+    if (!this.gameSessionId) {
+      throw new NoGameSessionError();
+    }
+
+    await this.networking.removePlayerSession(
       playerSessionId,
       this.gameSessionId
     );
@@ -422,6 +459,33 @@ export class GameLiftServerState extends GameLiftCommonState {
     }
 
     return await this.networking.describePlayerSessions(request);
+  }
+
+  /**
+   * Update the player session creation policy for the game session.
+   *
+   * Effectively communicates to the GameLift service to stop giving it more
+   * players.
+   *
+   * @internal
+   * @param newPlayerSessionCreationPolicy - New policy which allows or denies
+   * new player sessions.
+   */
+  public async updatePlayerSessionCreationPolicy(
+    newPlayerSessionCreationPolicy: "ACCEPT_ALL" | "DENY_ALL"
+  ): Promise<void> {
+    if (!this.assertNetworkInitialized()) {
+      throw new GameLiftServerNotInitializedError();
+    }
+
+    if (!this.gameSessionId) {
+      throw new NoGameSessionError();
+    }
+
+    await this.networking.updatePlayerSessionCreationPolicy(
+      this.gameSessionId,
+      newPlayerSessionCreationPolicy
+    );
   }
 
   /**
