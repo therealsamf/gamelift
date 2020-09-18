@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "rimraf dist && tsc",
+    "prepare": "npm run build",
     "prettier": "prettier --write lib/",
     "lint": "eslint lib/*.ts",
     "docs": "typedoc --stripInternal",
@@ -14,6 +15,12 @@
     "nodejs",
     "aws",
     "gamelift"
+  ],
+  "files": [
+    "dist/*.js",
+    "dist/*.d.ts",
+    "LICENSE",
+    "README.md"
   ],
   "author": "therealsamf",
   "license": "MIT",
