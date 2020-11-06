@@ -523,7 +523,7 @@ export class GameLiftServerState extends GameLiftCommonState {
    *
    * @internal
    */
-  private networking: Network;
+  public networking: Network;
 
   /**
    * Internal flag denoting the process is ready.

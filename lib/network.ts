@@ -114,7 +114,7 @@ export class Network {
         socket.on("connect_error", reject);
 
         socket.once("connect", () => {
-          debug('socket "%s" connected to GameLift service', socket.id);
+          debug(`socket '${socket.id}' connected to GameLift service`);
 
           socket.off("error", reject);
           socket.off("connect_handler", reject);
@@ -143,7 +143,7 @@ export class Network {
    * @param socket
    */
   private configureClient(socket: SocketIOClient.Socket): void {
-    socket.on("disconnect", this.onClose.bind(this, socket));
+    socket.on("disconnect", this.onClose.bind(this, socket) as () => void);
 
     socket.io.reconnectionAttempts(Network.RECONNECT_ATTEMPTS);
 
@@ -156,10 +156,10 @@ export class Network {
    * @internal
    * @param socket
    */
-  private setupClientHandlers(socket): void {
-    socket.on("StartGameSession", this.onStartGameSession.bind(this));
-    socket.on("UpdateGameSession", this.onUpdateGameSession.bind(this));
-    socket.on("TerminateProcess", this.onTerminateProcess.bind(this));
+  private setupClientHandlers(socket: SocketIOClient.Socket): void {
+    socket.on("StartGameSession", this.onStartGameSession);
+    socket.on("UpdateGameSession", this.onUpdateGameSession);
+    socket.on("TerminateProcess", this.onTerminateProcess);
   }
 
   /**
@@ -170,10 +170,10 @@ export class Network {
    * @internal
    * @param socket
    */
-  private onClose(socket: SocketIOClient.Socket): void {
+  private onClose = (socket: SocketIOClient.Socket): void => {
     debug("socket disconnected");
     socket.off();
-  }
+  };
 
   /**
    * Handle the "StartGameSession" event from the GameLift service.
@@ -186,7 +186,7 @@ export class Network {
    * @param ack ACK function for alerting the GameLift service whether creation was
    *   successful.
    */
-  private onStartGameSession(data: string, ack?: Ack): void {
+  private onStartGameSession = (data: string, ack?: Ack): void => {
     debug("socket received 'OnStartGameSession' event");
 
     const activateGameSessionMessage = this.parseJsonDataIntoMessage<
@@ -197,7 +197,7 @@ export class Network {
 
     const _ack: Ack = ack || NOOP;
     this.handler.onStartGameSessionHandler(gameSession, _ack);
-  }
+  };
 
   /**
    * Handle the "UpdateGameSession" event from the GameLift service.
@@ -211,10 +211,10 @@ export class Network {
    * @param ack ACK function for alerting the GameLift service whether creation was
    *   successful.
    */
-  private onUpdateGameSession(
+  private onUpdateGameSession = (
     data: string,
     ack?: (response: boolean) => void
-  ): void {
+  ): void => {
     const updateGameSession = this.parseJsonDataIntoMessage<UpdateGameSession>(
       UpdateGameSession,
       data
@@ -222,7 +222,7 @@ export class Network {
 
     const _ack: Ack = ack || NOOP;
     this.handler.onUpdateGameSessionHandler(updateGameSession, _ack);
-  }
+  };
 
   /**
    * Handle the "OnTerminateProcess" event from the GameLift service.
@@ -233,7 +233,7 @@ export class Network {
    * @internal
    * @param data Raw data received from the socket.io client.
    */
-  private onTerminateProcess(data: string): void {
+  private onTerminateProcess = (data: string): void => {
     let terminateProcessMessage: TerminateProcess = null;
 
     try {
@@ -253,7 +253,7 @@ export class Network {
     this.handler.onTerminateSessionHandler(
       terminateProcessMessage.terminationTime
     );
-  }
+  };
 
   /**
    * Send the given health status to the GameLift service.
@@ -565,5 +565,5 @@ export class Network {
     return result;
   }
 
-  private socket: SocketIOClient.Socket;
+  public socket: SocketIOClient.Socket;
 }

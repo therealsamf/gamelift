@@ -27,8 +27,9 @@ export const mochaHooks = {
       "/usr/local/src/GameLift_09_17_2020/GameLiftLocal-1.0.5/GameLiftLocal.jar",
     ]);
 
-    gameLiftLocalProcess.on("error", done);
+    gameLiftLocalProcess.once("error", done);
     gameLiftLocalProcess.stdout.on("data", (data: string): void => {
+      gameLiftLocalProcess.removeListener("error", done);
       if (data.includes("WebSocket Server started")) {
         done();
       }
@@ -41,6 +42,7 @@ export const mochaHooks = {
    * Mocha.js hook function for killing the GameLiftLocal process.
    */
   afterEach() {
+    this.gameLiftLocalProcess.stdout.removeAllListeners();
     (this.gameLiftLocalProcess as childProcess.ChildProcess).kill("SIGTERM");
   },
 };
