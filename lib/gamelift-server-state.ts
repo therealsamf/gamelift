@@ -341,12 +341,14 @@ export class GameLiftServerState extends GameLiftCommonState {
   public reportHealth(): void {
     // Create a timer promise that will timeout and send an unhealthy status if it
     // beats the actual health check.
-    const timerPromise = new Promise<boolean>((resolve: () => void): void => {
-      setTimeout(
-        resolve.bind({}, false),
-        GameLiftServerState.HEALTHCHECK_TIMEOUT
-      );
-    });
+    const timerPromise = new Promise<boolean>(
+      (resolve: (healthy: boolean) => void): void => {
+        setTimeout(
+          () => resolve(false),
+          GameLiftServerState.HEALTHCHECK_TIMEOUT
+        );
+      }
+    );
 
     debug("running health check");
     Promise.race<Promise<boolean>>([this.onHealthCheck(), timerPromise])

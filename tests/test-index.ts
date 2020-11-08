@@ -1,5 +1,8 @@
 /**
  * @fileoverview Root level test suite for GameLift library.
+ *
+ * These tests are more of an integration test for every user-exposed function of the
+ * SDK.
  */
 
 import * as childProcess from "child_process";
@@ -89,6 +92,82 @@ describe("gamelift", function (): void {
     }
   });
 
+  describe("initSdk", function (): void {
+    /**
+     * Test that the SDK connects to the GameLiftLocal instance.
+     *
+     * The assertion is determined to be satisfied by watching GameLiftLocal's process
+     * output.
+     */
+    it("Connects to the local GameLift service", async function (): Promise<
+      void
+    > {
+      let boundEventHandler: (data: Buffer) => void = null;
+
+      /**
+       * Simple function that reads GameLiftLocal's STDOUT to determine if the SDK
+       * connected successfully.
+       * @param output - STDOUT
+       */
+      function readOutputData(resolve: () => void, data: Buffer): void {
+        const output = data.toString("utf-8");
+
+        if (
+          output.includes("client connected") &&
+          output.includes(`${process.ppid}`)
+        ) {
+          resolve();
+        }
+      }
+
+      const initializationPromise = new Promise((resolve: () => void): void => {
+        boundEventHandler = readOutputData.bind({}, resolve);
+        gameLiftLocalProcess.stdout.on("data", boundEventHandler);
+      });
+
+      const resultPromise = Promise.race([
+        initializationPromise,
+        new Promise((_resolve: () => void, reject: () => void): void => {
+          setTimeout(reject, 3000);
+        }),
+      ])
+        .catch((error?: Error): Promise<Error> => Promise.resolve(error))
+        .then(
+          (error?: Error): Promise<void> => {
+            gameLiftLocalProcess.stdout.off("data", boundEventHandler);
+
+            return error ? Promise.reject(error) : Promise.resolve();
+          }
+        );
+
+      await gamelift.initSdk();
+      return assert.isFulfilled(
+        resultPromise,
+        "GameLiftLocal never reported the process connecting"
+      );
+    });
+  });
+
+  describe("processReady", function (): void {
+    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): PromiseLike<
+      void
+    > {
+      const processParameters = {
+        port: null,
+        onStartGameSession: null,
+      };
+
+      return assert.isRejected(
+        gamelift.processReady(processParameters),
+        NotInitializedError
+      );
+    });
+
+    it("Alerts to the GameLift service that the process is ready to receive a game session", function (): void {});
+
+    it("Begins health checking", function (): void {});
+  });
+
   describe("getInstanceCertificate", function (): void {
     it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): PromiseLike<
       void
@@ -121,19 +200,80 @@ describe("gamelift", function (): void {
     });
   });
 
-  describe("processReady", function (): void {
-    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): PromiseLike<
-      void
-    > {
-      const processParameters = {
-        port: null,
-        onStartGameSession: null,
-      };
+  describe("activateGameSession", function (): void {
+    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
 
-      return assert.isRejected(
-        gamelift.processReady(processParameters),
-        NotInitializedError
-      );
-    });
+    it("Throws 'NoGameSessionError' if called before a game session has been assigned to the process", function (): void {});
+
+    it("Informs the GameLift service that the process is ready to receive player connections", function (): void {});
+  });
+
+  describe("getGameSessionId", function (): void {
+    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+
+    it("Throws 'ProcessNotReady' error if the process hasn't informed the GameLift service that it's ready yet.", function (): void {});
+
+    it("Throws 'NoGameSessionError' error if the process hasn't been assigned a game session yet", function (): void {});
+
+    it("Retrieves the correct game session ID when a game session has been assigned to the process", function (): void {});
+  });
+
+  describe("acceptPlayerSession", function (): void {
+    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+
+    it("Throws 'NoGameSessionError' if called before a game session has been assigned to the process", function (): void {});
+
+    it("Alerts the caller that the player session ID was invalid if the GameLift service responds with an error", function (): void {});
+
+    it("It correctly informs the GameLift service that the player session was accepted", function (): void {});
+  });
+
+  describe("describePlayerSessions", function (): void {
+    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+
+    it("Throws 'ProcessNotReady' error if the process hasn't informed the GameLift service that it's ready yet.", function (): void {});
+
+    it("Is correctly received by the GameLift service", function (): void {});
+  });
+
+  describe("updatePlayerSessionCreationPolicy", function (): void {
+    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+
+    it("Throws 'NoGameSessionError' if called before a game session has been assigned to the process", function (): void {});
+
+    it("Correctly serializes a Protocol Buffer request that can be properly received by the GameLift service", function (): void {});
+  });
+
+  describe("removePlayerSession", function (): void {
+    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+
+    it("Throws 'ProcessNotReady' error if the process hasn't informed the GameLift service that it's ready yet.", function (): void {});
+
+    it("Throws 'NoGameSessionError' if called before a game session has been assigned to the process", function (): void {});
+
+    it("It correctly informs the GameLift service that the player session has been removed", function (): void {});
+  });
+
+  // describe("startMatchBackfill", function (): void {});
+  // describe("stopMatchBackfill", function (): void {});
+
+  describe("terminateGameSession", function (): void {
+    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+
+    it("Throws 'NoGameSessionError' if called before a game session has been assigned to the process", function (): void {});
+
+    it("It sends a terminate game session event to the GameLift process which is correctly received", function(): void {});
+  });
+
+  describe("getTerminationTime", function (): void {
+    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+
+    it("Returns that terminatino time that was sent & set from the GameLift service", function(): void {});
+  });
+
+  describe("processEnding", function (): void {
+    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+
+    it("Correctly informs the GameLift service that the process is ending", function(): void {});
   });
 });
