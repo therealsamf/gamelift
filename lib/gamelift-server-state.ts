@@ -129,7 +129,7 @@ export class GameLiftCommonState {
    * Retrieve the singleton server state instance.
    *
    * @internal
-   * @return Static GameLiftCommonState instance.
+   * @returns Static GameLiftCommonState instance.
    */
   public static getInstance(): GameLiftCommonState {
     if (!GameLiftCommonState.instance) {
@@ -142,7 +142,7 @@ export class GameLiftCommonState {
    * Set the singleton server state instance.
    *
    * @internal
-   * @param instance
+   * @param instance - GameLift server state instance.
    */
   public static setInstance(instance: GameLiftCommonState): void {
     if (GameLiftCommonState.instance) {
@@ -199,7 +199,7 @@ export class GameLiftServerState extends GameLiftCommonState {
    * Accessor for the {@link gameSessionId}.
    *
    * @internal
-   * @return Value of the `gameSessionId` if it's set.
+   * @returns Value of the `gameSessionId` if it's set.
    */
   public getGameSessionId(): string {
     if (!this.gameSessionId) {
@@ -220,7 +220,7 @@ export class GameLiftServerState extends GameLiftCommonState {
    * Accessor for the {@link terminationTime}.
    *
    * @internal
-   * @return UNIX epock representing the termination time for the process to
+   * @returns UNIX epoch representing the termination time for the process to
    * be shut down.
    */
   public getTerminationTime(): number {
@@ -230,7 +230,7 @@ export class GameLiftServerState extends GameLiftCommonState {
   /**
    * Send a message to the GameLift service asking for the TLS certicates/keys.
    *
-   * @return Object with the properties for setting up a TLS secured server.
+   * @returns Object with the properties for setting up a TLS secured server.
    */
   public async getInstanceCertificate(): Promise<
     GetInstanceCertificateResponse
@@ -246,7 +246,7 @@ export class GameLiftServerState extends GameLiftCommonState {
    * Create the Server state instance and set it as the singleton for the application.
    *
    * @internal
-   * @return New GameLiftServerState instance.
+   * @returns New GameLiftServerState instance.
    */
   public static createInstance(): GameLiftServerState {
     debug("creating GameLiftServerState instance");
@@ -274,7 +274,8 @@ export class GameLiftServerState extends GameLiftCommonState {
    * after setting up the necessary callbacks.
    *
    * @internal
-   * @param processParameters
+   * @param processParameters - Parameters that define code flow once the GameLift
+   * server begins interacting with the process.
    */
   public async processReady(
     processParameters: ProcessParameters
@@ -338,12 +339,14 @@ export class GameLiftServerState extends GameLiftCommonState {
    *
    * @internal
    */
-  public reportHealth(): void {
+  public reportHealth(): Promise<void> {
+    let timer: NodeJS.Timeout = null;
+
     // Create a timer promise that will timeout and send an unhealthy status if it
     // beats the actual health check.
     const timerPromise = new Promise<boolean>(
       (resolve: (healthy: boolean) => void): void => {
-        setTimeout(
+        timer = setTimeout(
           () => resolve(false),
           GameLiftServerState.HEALTHCHECK_TIMEOUT
         );
@@ -351,11 +354,12 @@ export class GameLiftServerState extends GameLiftCommonState {
     );
 
     debug("running health check");
-    Promise.race<Promise<boolean>>([this.onHealthCheck(), timerPromise])
+    return Promise.race<Promise<boolean>>([this.onHealthCheck(), timerPromise])
       .then((healthy: boolean) => this.networking.reportHealth(healthy))
       .catch((error?: Error): void => {
         debug(`error occurred during healthcheck: ${error}`);
-      });
+      })
+      .then(() => clearTimeout(timer));
   }
 
   /**
@@ -449,7 +453,7 @@ export class GameLiftServerState extends GameLiftCommonState {
    * @internal
    * @param request - Details the parameter for the search of player sessions.
    *
-   * @return Result of the API call from GameLift service.
+   * @returns Result of the API call from GameLift service.
    */
   public async describePlayerSessions(
     request: DescribePlayerSessionsRequest
@@ -548,8 +552,9 @@ export class GameLiftServerState extends GameLiftCommonState {
    * event.
    *
    * @internal
-   * @param gameSession
-   * @param ack
+   * @param gameSession - Game session instance received from the GameLift service.
+   * @param ack - Acknowledge function to communicate with the GameLift service if the
+   * starting of the game session was successful.
    */
   public onStartGameSessionHandler(gameSession: GameSession, ack: Ack): void {
     if (!this.processReadyFlag) {
@@ -580,8 +585,9 @@ export class GameLiftServerState extends GameLiftCommonState {
    * event.
    *
    * @internal
-   * @param updateGameSession
-   * @param ack
+   * @param updateGameSession - Update game session message received from the GameLift service.
+   * @param ack - Acknowledgement function to communicate with the GameLift service if
+   * the event has handled successfully.
    */
   public onUpdateGameSessionHandler(
     updateGameSession: UpdateGameSession,

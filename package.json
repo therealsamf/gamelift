@@ -26,6 +26,7 @@
   "author": "therealsamf",
   "license": "MIT",
   "devDependencies": {
+    "@aws-sdk/client-gamelift-node": "0.1.0-preview.2",
     "@types/chai": "^4.2.14",
     "@types/chai-as-promised": "^7.1.3",
     "@types/mocha": "^8.0.3",
