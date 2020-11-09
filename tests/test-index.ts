@@ -11,13 +11,18 @@ import * as path from "path";
 import { GetInstanceCertificateResponse } from "@kontest/gamelift-pb";
 import { assert, use } from "chai";
 use(require("chai-as-promised"));
+import sinon from "sinon";
 
 import * as gamelift from "../lib";
 import {
   GameLiftCommonState,
   GameLiftServerState,
 } from "../lib/gamelift-server-state";
-import { NotInitializedError } from "../lib/exceptions";
+import {
+  NoGameSessionError,
+  NotInitializedError,
+  ProcessNotReadyError,
+} from "../lib/exceptions";
 
 describe("gamelift", function (): void {
   /**
@@ -64,7 +69,7 @@ describe("gamelift", function (): void {
     });
   });
 
-  afterEach(function (): void {
+  afterEach(async function (): Promise<void> {
     // Conditionally grab the current GameLift server state singleton
     let instance: GameLiftServerState = null;
     try {
@@ -82,7 +87,16 @@ describe("gamelift", function (): void {
       const networking = instance.networking;
 
       if (networking && networking.connected()) {
-        networking.socket.close();
+        await new Promise((resolve: () => void): void => {
+          networking.socket.once("disconnect", resolve);
+          networking.socket.close();
+        });
+      }
+
+      // @ts-ignore
+      if (instance._healthCheckTimeout) {
+        // @ts-ignore
+        clearInterval(instance._healthCheckTimeout);
       }
 
       // instance is a private member variable of GameLiftCommonState so ignore the
@@ -149,19 +163,9 @@ describe("gamelift", function (): void {
   });
 
   describe("processReady", function (): void {
-    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): PromiseLike<
-      void
-    > {
-      const processParameters = {
-        port: null,
-        onStartGameSession: null,
-      };
-
-      return assert.isRejected(
-        gamelift.processReady(processParameters),
-        NotInitializedError
-      );
-    });
+    createTestForSdkInitializedError(
+      gamelift.processReady.bind({}, { port: null, onStartGameSession: null })
+    );
 
     it("Alerts to the GameLift service that the process is ready to receive a game session", function (): void {});
 
@@ -169,14 +173,7 @@ describe("gamelift", function (): void {
   });
 
   describe("getInstanceCertificate", function (): void {
-    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): PromiseLike<
-      void
-    > {
-      return assert.isRejected(
-        gamelift.getInstanceCertificate(),
-        NotInitializedError
-      );
-    });
+    createTestForSdkInitializedError(gamelift.getInstanceCertificate);
 
     it("Retrieves the location of the certificates", async function (): Promise<
       void
@@ -201,27 +198,39 @@ describe("gamelift", function (): void {
   });
 
   describe("activateGameSession", function (): void {
-    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+    createTestForSdkInitializedError(gamelift.activateGameSession);
 
-    it("Throws 'NoGameSessionError' if called before a game session has been assigned to the process", function (): void {});
+    createTestForNoGameSessionError(gamelift.activateGameSession);
 
     it("Informs the GameLift service that the process is ready to receive player connections", function (): void {});
   });
 
   describe("getGameSessionId", function (): void {
-    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+    createTestForSdkInitializedError(
+      async (): Promise<string> => {
+        return await Promise.resolve(gamelift.getGameSessionId());
+      }
+    );
 
-    it("Throws 'ProcessNotReady' error if the process hasn't informed the GameLift service that it's ready yet.", function (): void {});
+    createTestForNoGameSessionError(
+      async (): Promise<string> => {
+        return await Promise.resolve(gamelift.getGameSessionId());
+      }
+    );
 
-    it("Throws 'NoGameSessionError' error if the process hasn't been assigned a game session yet", function (): void {});
+    createTestForProcessNotReady(
+      async (): Promise<string> => {
+        return await Promise.resolve(gamelift.getGameSessionId());
+      }
+    );
 
     it("Retrieves the correct game session ID when a game session has been assigned to the process", function (): void {});
   });
 
   describe("acceptPlayerSession", function (): void {
-    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+    createTestForSdkInitializedError(gamelift.acceptPlayerSession.bind({}, ""));
 
-    it("Throws 'NoGameSessionError' if called before a game session has been assigned to the process", function (): void {});
+    createTestForNoGameSessionError(gamelift.acceptPlayerSession.bind({}, ""));
 
     it("Alerts the caller that the player session ID was invalid if the GameLift service responds with an error", function (): void {});
 
@@ -229,27 +238,35 @@ describe("gamelift", function (): void {
   });
 
   describe("describePlayerSessions", function (): void {
-    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+    createTestForSdkInitializedError(
+      gamelift.describePlayerSessions.bind({}, null)
+    );
 
-    it("Throws 'ProcessNotReady' error if the process hasn't informed the GameLift service that it's ready yet.", function (): void {});
+    createTestForProcessNotReady(
+      gamelift.describePlayerSessions.bind({}, null)
+    );
 
     it("Is correctly received by the GameLift service", function (): void {});
   });
 
   describe("updatePlayerSessionCreationPolicy", function (): void {
-    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+    createTestForSdkInitializedError(
+      gamelift.updatePlayerSessionCreationPolicy.bind({}, "ACCEPT_ALL")
+    );
 
-    it("Throws 'NoGameSessionError' if called before a game session has been assigned to the process", function (): void {});
+    createTestForNoGameSessionError(
+      gamelift.updatePlayerSessionCreationPolicy.bind({}, "ACCEPT_ALL")
+    );
 
     it("Correctly serializes a Protocol Buffer request that can be properly received by the GameLift service", function (): void {});
   });
 
   describe("removePlayerSession", function (): void {
-    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+    createTestForSdkInitializedError(gamelift.removePlayerSession.bind({}, ""));
 
-    it("Throws 'ProcessNotReady' error if the process hasn't informed the GameLift service that it's ready yet.", function (): void {});
+    createTestForProcessNotReady(gamelift.removePlayerSession.bind({}, ""));
 
-    it("Throws 'NoGameSessionError' if called before a game session has been assigned to the process", function (): void {});
+    createTestForNoGameSessionError(gamelift.removePlayerSession.bind({}, ""));
 
     it("It correctly informs the GameLift service that the player session has been removed", function (): void {});
   });
@@ -258,22 +275,156 @@ describe("gamelift", function (): void {
   // describe("stopMatchBackfill", function (): void {});
 
   describe("terminateGameSession", function (): void {
-    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+    createTestForSdkInitializedError(gamelift.terminateGameSession);
 
-    it("Throws 'NoGameSessionError' if called before a game session has been assigned to the process", function (): void {});
+    createTestForNoGameSessionError(gamelift.terminateGameSession);
 
-    it("It sends a terminate game session event to the GameLift process which is correctly received", function(): void {});
+    it("It sends a terminate game session event to the GameLift process which is correctly received", function (): void {});
   });
 
   describe("getTerminationTime", function (): void {
-    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+    createTestForSdkInitializedError(
+      // This callback is weird because I need to make sure it isn't invoked
+      // immediately
+      async (): Promise<number> => {
+        return await Promise.resolve(gamelift.getTerminationTime());
+      }
+    );
 
-    it("Returns that terminatino time that was sent & set from the GameLift service", function(): void {});
+    it("Returns that termination time that was sent & set from the GameLift service", function (): void {});
   });
 
   describe("processEnding", function (): void {
-    it("Throws 'NotInitializedError' if the SDK hasn't been initialized", function (): void {});
+    createTestForSdkInitializedError(gamelift.processEnding);
 
-    it("Correctly informs the GameLift service that the process is ending", function(): void {});
+    it("Correctly informs the GameLift service that the process is ending", function (): void {});
   });
 });
+
+/**
+ * Utility function for creating a test that the given promise-producing function
+ * rejects with the `NotInitializedError`.
+ *
+ * This function reduces code duplication.
+ * @param callable - Function that produce a promise that is rejected.
+ */
+function createTestForSdkInitializedError(
+  callable: () => PromiseLike<any>
+): void {
+  return createTestForCatchError({
+    errorType: NotInitializedError,
+    testTitleSuffix: " if the SDK hasn't been initialized",
+    callable,
+  });
+}
+
+/**
+ * Utility function for creating a test htat the given promise-producing function
+ * rejects with `ProcessNotReadyError`.
+ *
+ * @param callable - Function that produces a promise taht should be rejected
+ * `ProcessNotReadyError` lest the test fails.
+ */
+function createTestForProcessNotReady(callable: () => PromiseLike<any>): void {
+  return createTestForCatchError({
+    errorType: ProcessNotReadyError,
+    testTitleSuffix:
+      " error if the process hasn't informed the GameLift service that it's ready yet",
+    callable,
+    before: (): Promise<void> => {
+      return gamelift.initSdk();
+    },
+  });
+}
+
+/**
+ * Utility function for creating a test that the given promise-producing function
+ * rejects with `NoGameSessionError`.
+ *
+ * This function reduces code duplication.
+ * @param callable - Function that produces a promise that should be rejected with
+ * the specified error.
+ */
+function createTestForNoGameSessionError(
+  callable: () => PromiseLike<any>
+): void {
+  return createTestForCatchError({
+    errorType: NoGameSessionError,
+    testTitleSuffix: " if the process hasn't been assigned a game session yet",
+    callable,
+    before: async (): Promise<void> => {
+      await gamelift.initSdk();
+
+      const instance = GameLiftServerState.getInstance();
+
+      // TS ignore line here because I'm pretty sure there's a bug in the typings for
+      // sinon.
+      // This is stubbed because it doesn't affect the semantics around throwing the no
+      // game session error at all.
+      // @ts-ignore
+      sinon.stub(instance, "healthCheck");
+
+      return gamelift.processReady({
+        port: 2020,
+        onStartGameSession: () => {},
+      });
+    },
+  });
+}
+
+/**
+ * Custom error class definition that allows me to pass any subclass definitions of
+ * `Error` that have a different construtor signature from the original.
+ */
+interface CustomErrorConstructor {
+  new (): Error;
+}
+
+/**
+ * Defines the options used for creating tests for catching errors.
+ */
+interface ICreateTestForCatchErrorOptions {
+  /**
+   * Error class that should be thrown.
+   */
+  errorType: CustomErrorConstructor;
+
+  /**
+   * Suffix to append to the test title
+   */
+  testTitleSuffix?: string;
+
+  /**
+   * Function that returns a promise that should be rejecting with the specified error.
+   */
+  callable: () => PromiseLike<any>;
+
+  /**
+   * "Hook" that is run before the assertion is made.
+   *
+   * Should be use for any setup or anything like that.
+   */
+  before?: () => PromiseLike<any>;
+}
+
+/**
+ * Utility function for generating test cases that watch for an error to be thrown.
+ *
+ * This function is meant to reduce the amount of code duplication since many of the
+ * user-facing functions need to ensure that they throw the proper errors when called
+ * incorrectly but I don't want to have to re-write the same test a dozen times.
+ */
+function createTestForCatchError({
+  errorType,
+  testTitleSuffix,
+  callable,
+  before,
+}: ICreateTestForCatchErrorOptions) {
+  it(`Throws '${errorType.name}'${testTitleSuffix}`, async function (): Promise<
+    void
+  > {
+    await (before ? before() : Promise.resolve());
+
+    return assert.isRejected(callable(), errorType);
+  });
+}
