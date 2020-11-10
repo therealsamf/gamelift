@@ -585,7 +585,8 @@ export class GameLiftServerState extends GameLiftCommonState {
    * event.
    *
    * @internal
-   * @param updateGameSession - Update game session message received from the GameLift service.
+   * @param updateGameSession - Update game session message received from the GameLift
+   * service.
    * @param ack - Acknowledgement function to communicate with the GameLift service if
    * the event has handled successfully.
    */

@@ -14,7 +14,12 @@ import {
   CreateGameSessionOutput,
 } from "@aws-sdk/client-gamelift-node/commands/CreateGameSessionCommand";
 import {
+  CreatePlayerSessionCommand,
+  CreatePlayerSessionOutput,
+} from "@aws-sdk/client-gamelift-node/commands/CreatePlayerSessionCommand";
+import {
   DescribePlayerSessionsRequest,
+  GameSession,
   GetInstanceCertificateResponse,
 } from "@kontest/gamelift-pb";
 import { assert, use } from "chai";
@@ -31,6 +36,7 @@ import {
   NotInitializedError,
   ProcessNotReadyError,
 } from "../lib/exceptions";
+import { _UnmarshalledGameSession } from "@aws-sdk/client-gamelift-node/types/_GameSession";
 
 describe("gamelift", function (): void {
   /**
@@ -300,9 +306,72 @@ describe("gamelift", function (): void {
 
     createTestForNoGameSessionError(gamelift.acceptPlayerSession.bind({}, ""));
 
-    it("Alerts the caller that the player session ID was invalid if the GameLift service responds with an error", function (): void {});
+    it("Alerts the caller that the player session ID was invalid if the GameLift service responds with an error", async function (): Promise<
+      void
+    > {
+      await gamelift.initSdk();
 
-    it("Correctly informs the GameLift service that the player session was accepted", function (): void {});
+      await new Promise(
+        async (resolve: () => void): Promise<void> => {
+          // Stub the health checking so it doesn't get in the way.
+          sinon.stub(
+            GameLiftServerState.getInstance() as GameLiftServerState,
+            "healthCheck"
+          );
+          await gamelift.processReady({
+            port: 2020,
+            onStartGameSession: async (): Promise<void> => {
+              await gamelift.activateGameSession();
+              resolve();
+            },
+          });
+
+          await createGameSession();
+        }
+      );
+
+      return assert.isRejected(gamelift.acceptPlayerSession(""));
+    });
+
+    it("Correctly informs the GameLift service that the player session was accepted", async function (): Promise<
+      void
+    > {
+      await gamelift.initSdk();
+
+      const gameSession = await new Promise(
+        async (resolve: (_gameSession: GameSession) => void): Promise<void> => {
+          // Stub the health checking so it doesn't get in the way.
+          sinon.stub(
+            GameLiftServerState.getInstance() as GameLiftServerState,
+            "healthCheck"
+          );
+          await gamelift.processReady({
+            port: 2020,
+            onStartGameSession: (gameSession: GameSession): void => {
+              gamelift.activateGameSession().then(() => resolve(gameSession));
+            },
+          });
+
+          await createGameSession();
+        }
+      );
+
+      const gameLift = new GameLiftClient({
+        // Address of the local GameLiftLocal service
+        endpoint: "http://localhost:8080",
+      });
+
+      const playerId = "player-1";
+      const command = new CreatePlayerSessionCommand({
+        GameSessionId: gameSession.gameSessionId,
+        PlayerId: playerId,
+      });
+
+      const response = await gameLift.send(command);
+      return assert.isFulfilled(
+        gamelift.acceptPlayerSession(response.PlayerSession.PlayerSessionId)
+      );
+    });
   });
 
   describe("describePlayerSessions", function (): void {
@@ -389,7 +458,40 @@ describe("gamelift", function (): void {
       gamelift.updatePlayerSessionCreationPolicy.bind({}, "ACCEPT_ALL")
     );
 
-    it("Correctly serializes a Protocol Buffer request that can be properly received by the GameLift service", function (): void {});
+    const updatePlayerSessionCreationPolicySetup = function (): Promise<void> {
+      return new Promise<void>(
+        async (resolve: () => void): Promise<void> => {
+          await gamelift.initSdk();
+          // Stub the health checking so it doesn't get in the way.
+          sinon.stub(
+            GameLiftServerState.getInstance() as GameLiftServerState,
+            "healthCheck"
+          );
+          await gamelift.processReady({
+            port: 2020,
+            onStartGameSession: (): void => {
+              gamelift.activateGameSession().then(() => resolve());
+            },
+          });
+
+          await createGameSession();
+        }
+      ).then(
+        (): Promise<void> =>
+          gamelift.updatePlayerSessionCreationPolicy("DENY_ALL")
+      );
+    };
+
+    createTestForGameLiftLocal({
+      title:
+        "Correctly serializes a Protocol Buffer request that can be properly received by the GameLift service",
+      searchString: 'newPlayerSessionCreationPolicy: "DENY_ALL"',
+      gameLiftLocalProcess: () => gameLiftLocalProcess,
+      _before: updatePlayerSessionCreationPolicySetup,
+      _after: async (): Promise<void> => {
+        await gamelift.processEnding();
+      },
+    });
   });
 
   describe("removePlayerSession", function (): void {
@@ -399,7 +501,49 @@ describe("gamelift", function (): void {
 
     createTestForNoGameSessionError(gamelift.removePlayerSession.bind({}, ""));
 
-    it("Correctly informs the GameLift service that the player session has been removed", function (): void {});
+    it("Correctly informs the GameLift service that the player session has been removed", async function (): Promise<
+      void
+    > {
+      await gamelift.initSdk();
+
+      const gameSession = await new Promise(
+        async (resolve: (_gameSession: GameSession) => void): Promise<void> => {
+          // Stub the health checking so it doesn't get in the way.
+          sinon.stub(
+            GameLiftServerState.getInstance() as GameLiftServerState,
+            "healthCheck"
+          );
+          await gamelift.processReady({
+            port: 2020,
+            onStartGameSession: (gameSession: GameSession): void => {
+              gamelift.activateGameSession().then(() => resolve(gameSession));
+            },
+          });
+
+          await createGameSession();
+        }
+      );
+
+      const gameLift = new GameLiftClient({
+        // Address of the local GameLiftLocal service
+        endpoint: "http://localhost:8080",
+      });
+
+      const playerId = "player-1";
+      const command = new CreatePlayerSessionCommand({
+        GameSessionId: gameSession.gameSessionId,
+        PlayerId: playerId,
+      });
+
+      const response = await gameLift.send(command);
+      await gamelift.acceptPlayerSession(
+        response.PlayerSession.PlayerSessionId
+      );
+
+      return assert.isFulfilled(
+        gamelift.removePlayerSession(response.PlayerSession.PlayerSessionId)
+      );
+    });
   });
 
   // describe("startMatchBackfill", function (): void {});
@@ -410,7 +554,38 @@ describe("gamelift", function (): void {
 
     createTestForNoGameSessionError(gamelift.terminateGameSession);
 
-    it("Sends a terminate game session event to the GameLift process which is correctly received", function (): void {});
+    // Setup function for creating a game and resolving once the game session has been
+    // terminated.
+    const terminateGameSessionSetup = async (): Promise<void> => {
+      await gamelift.initSdk();
+
+      await new Promise<GameSession>(
+        async (resolve: () => void): Promise<void> => {
+          // Stub the health checking so it doesn't get in the way.
+          sinon.stub(
+            GameLiftServerState.getInstance() as GameLiftServerState,
+            "healthCheck"
+          );
+          await gamelift.processReady({
+            port: 2020,
+            onStartGameSession: () => resolve(),
+          });
+
+          await createGameSession();
+        }
+      );
+
+      await gamelift.terminateGameSession();
+    };
+
+    createTestForGameLiftLocal({
+      title:
+        "Sends a terminate game session event to the GameLift process which is correctly received",
+      searchString: "Handling game session terminate event",
+      gameLiftLocalProcess: () => gameLiftLocalProcess,
+      _before: terminateGameSessionSetup,
+      _after: (): Promise<void> => gamelift.processEnding(),
+    });
   });
 
   describe("getTerminationTime", function (): void {
@@ -422,7 +597,13 @@ describe("gamelift", function (): void {
       }
     );
 
-    it("Returns the termination time that was sent & set from the GameLift service", function (): void {});
+    // I can't force the GameLiftLocal process to send the process termination message
+    // to the gamelift library and cause the execution of the termination time to be
+    // set. That will have to come from a more granular unit test where I mock out the
+    // GameLiftLocal service.
+    it.skip("Returns the termination time that was sent & set from the GameLift service", async function (): Promise<
+      void
+    > {});
   });
 
   describe("processEnding", function (): void {
