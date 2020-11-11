@@ -9,18 +9,19 @@ import * as childProcess from "child_process";
 import * as path from "path";
 
 import { GameLiftClient } from "@aws-sdk/client-gamelift-node/GameLiftClient";
+import { _UnmarshalledGameSession } from "@aws-sdk/client-gamelift-node/types/_GameSession";
 import {
   CreateGameSessionCommand,
   CreateGameSessionOutput,
 } from "@aws-sdk/client-gamelift-node/commands/CreateGameSessionCommand";
+import { CreatePlayerSessionCommand } from "@aws-sdk/client-gamelift-node/commands/CreatePlayerSessionCommand";
 import {
-  CreatePlayerSessionCommand,
-  CreatePlayerSessionOutput,
-} from "@aws-sdk/client-gamelift-node/commands/CreatePlayerSessionCommand";
-import {
+  AttributeValue,
+  BackfillMatchmakingRequest,
   DescribePlayerSessionsRequest,
   GameSession,
   GetInstanceCertificateResponse,
+  StopMatchmakingRequest,
 } from "@kontest/gamelift-pb";
 import { assert, use } from "chai";
 use(require("chai-as-promised"));
@@ -36,7 +37,6 @@ import {
   NotInitializedError,
   ProcessNotReadyError,
 } from "../lib/exceptions";
-import { _UnmarshalledGameSession } from "@aws-sdk/client-gamelift-node/types/_GameSession";
 
 describe("gamelift", function (): void {
   /**
@@ -546,8 +546,120 @@ describe("gamelift", function (): void {
     });
   });
 
-  // describe("startMatchBackfill", function (): void {});
-  // describe("stopMatchBackfill", function (): void {});
+  // StartMatchBackfill GameLift SDK request is not supported by GameLiftLocal
+  //
+  // The best this integration test can do is test that GameLiftLocal successfully
+  // received the request.
+  describe("startMatchBackfill", function (): void {
+    createTestForSdkInitializedError(() => gamelift.startMatchBackfill(null));
+
+    createTestForGameLiftLocal({
+      title:
+        "Successfully sends a request to the GameLift service to start backfilling the game session",
+      gameLiftLocalProcess: () => gameLiftLocalProcess,
+      searchString: "BackfillMatchmakingRequest received",
+      _before: async (): Promise<void> => {
+        await gamelift.initSdk();
+
+        const gameSession = await new Promise<GameSession>(
+          async (
+            resolve: (gameSession: GameSession) => void
+          ): Promise<void> => {
+            // Stub the health checking so it doesn't get in the way.
+            sinon.stub(
+              GameLiftServerState.getInstance() as GameLiftServerState,
+              "healthCheck"
+            );
+            await gamelift.processReady({
+              port: 2020,
+              onStartGameSession: (gameSession) => resolve(gameSession),
+            });
+
+            await createGameSession();
+          }
+        );
+
+        // Example request data taken from:
+        // https://docs.aws.amazon.com/gamelift/latest/developerguide/match-events.html
+        const request = new BackfillMatchmakingRequest({
+          gameSessionArn: gameSession.gameSessionId,
+          matchmakingConfigurationArn:
+            "arn:aws:gamelift:us-west-2:123456789012:matchmakingconfiguration/SampleConfiguration",
+          players: [
+            // @ts-ignore
+            {
+              playerId: "player-1",
+              playerAttributes: {
+                attribute: { N: 1, type: AttributeValue.NONE },
+              },
+            },
+          ],
+        });
+
+        await gamelift.startMatchBackfill(request);
+      },
+      _after: () => gamelift.processEnding(),
+    });
+  });
+
+  // StopMatchBackfill GameLift SDK request is not supported by GameLiftLocal.
+  //
+  // The best this integration test can do is test that GameLiftLocal successfully
+  // received the request.
+  describe("stopMatchBackfill", function (): void {
+    createTestForSdkInitializedError(() =>
+      gamelift.stopMatchBackfill(new StopMatchmakingRequest())
+    );
+
+    createTestForGameLiftLocal({
+      title:
+        "Successfully sends a request to the GameLift service to stop backfilling the game session",
+      gameLiftLocalProcess: () => gameLiftLocalProcess,
+      searchString: "StopMatchmakingRequest received",
+      _before: async (): Promise<void> => {
+        await gamelift.initSdk();
+
+        const gameSession = await new Promise<GameSession>(
+          async (
+            resolve: (gameSession: GameSession) => void
+          ): Promise<void> => {
+            // Stub the health checking so it doesn't get in the way.
+            sinon.stub(
+              GameLiftServerState.getInstance() as GameLiftServerState,
+              "healthCheck"
+            );
+            await gamelift.processReady({
+              port: 2020,
+              onStartGameSession: (gameSession) => resolve(gameSession),
+            });
+
+            await createGameSession();
+          }
+        );
+
+        // Example request data taken from:
+        // https://docs.aws.amazon.com/gamelift/latest/developerguide/match-events.html
+        const request = new BackfillMatchmakingRequest({
+          gameSessionArn: gameSession.gameSessionId,
+          matchmakingConfigurationArn:
+            "arn:aws:gamelift:us-west-2:123456789012:matchmakingconfiguration/SampleConfiguration",
+          // @ts-ignore
+          players: [{}],
+        });
+        const response = await gamelift.startMatchBackfill(request);
+
+        const stopRequest = new StopMatchmakingRequest({
+          gameSessionArn: gameSession.gameSessionId,
+          matchmakingConfigurationArn:
+            "arn:aws:gamelift:us-west-2:123456789012:matchmakingconfiguration/SampleConfiguration",
+          ticketId: response.ticketId,
+        });
+
+        await gamelift.stopMatchBackfill(stopRequest);
+      },
+      _after: () => gamelift.processEnding(),
+    });
+  });
 
   describe("terminateGameSession", function (): void {
     createTestForSdkInitializedError(gamelift.terminateGameSession);

@@ -6,7 +6,8 @@
  * This data type is used to identify which files generated during a game session that
  * you want GameLift to upload and store once the game session ends.
  *
- * This information is communicated to the GameLift service in a {@link ProcessReady} call.
+ * This information is communicated to the GameLift service in a
+ * {@link processReady | `processReady()`} call.
  */
 export interface LogParameters {
   /**

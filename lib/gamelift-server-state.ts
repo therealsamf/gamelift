@@ -12,6 +12,9 @@ import type {
   UpdateGameSession,
   DescribePlayerSessionsResponse,
   GetInstanceCertificateResponse,
+  BackfillMatchmakingRequest,
+  BackfillMatchmakingResponse,
+  StopMatchmakingRequest,
 } from "@kontest/gamelift-pb";
 
 import {
@@ -24,6 +27,7 @@ import {
 import { Network, Ack } from "./network";
 import type { LogParameters } from "./types";
 
+/** @hidden */
 const debug = _debug("gamelift:gamelift-server-state");
 
 /**
@@ -49,6 +53,8 @@ type OnHealthCheckCallback = () => Promise<boolean>;
 
 /**
  * Callback used for the "OnUpdateGameSession" event.
+ *
+ * @internal
  */
 type OnUpdateGameSessionCallback = (
   updateGameSession: UpdateGameSession
@@ -56,7 +62,7 @@ type OnUpdateGameSessionCallback = (
 
 /**
  * This data type contains the set of parameters sent to the GameLift service
- * in a {@link ProcessReady} call.
+ * in a {@link processReady | `processReady()`} call.
  */
 export interface ProcessParameters {
   /**
@@ -492,6 +498,45 @@ export class GameLiftServerState extends GameLiftCommonState {
       this.gameSessionId,
       newPlayerSessionCreationPolicy
     );
+  }
+
+  /**
+   * Instruct the GameLift service to begin backfilling this game session with more
+   * players with FlexMatch.
+   *
+   * @internal
+   * @param request - Backfill matchmaking request to send to the GameLift service.
+   * @returns [`BackfillMatchmakingResponse`] with the ticket ID for the FlexMatch
+   * backfill matchmaking request.
+   *
+   * [`BackfillMatchmakingResponse`]: https://docs.kontest.io/gamelift-pb/latest/classes/backfillmatchmakingresponse.html
+   */
+  public async backfillMatchmaking(
+    request: BackfillMatchmakingRequest
+  ): Promise<BackfillMatchmakingResponse> {
+    if (!this.assertNetworkInitialized()) {
+      throw new GameLiftServerNotInitializedError();
+    }
+
+    return await this.networking.backfillMatchmaking(request);
+  }
+
+  /**
+   * Send message to the GameLift service to stop the matchmaking request in the given
+   * request.
+   *
+   * @internal
+   * @param request - [`StopMatchmakingRequest`] message used to identify the backfill
+   * matchmaking request to stop.
+   *
+   * [`StopMatchmakingRequest`]: https://docs.kontest.io/gamelift-pb/latest/classes/stopmatchmakingrequest.html
+   */
+  public async stopMatchmaking(request: StopMatchmakingRequest): Promise<void> {
+    if (!this.assertNetworkInitialized()) {
+      throw new GameLiftServerNotInitializedError();
+    }
+
+    return await this.networking.stopMatchmaking(request);
   }
 
   /**

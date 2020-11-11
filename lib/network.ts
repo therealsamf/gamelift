@@ -20,12 +20,16 @@ import {
   UpdatePlayerSessionCreationPolicy,
   ReportHealth,
   RemovePlayerSession,
+  BackfillMatchmakingRequest,
+  BackfillMatchmakingResponse,
+  StopMatchmakingRequest,
 } from "@kontest/gamelift-pb";
 import _debug from "debug";
-import { Message, Type, Writer } from "protobufjs";
+import { Message, Writer, Type } from "protobufjs";
 
 import type { LogParameters } from "./types";
 
+/** @hidden */
 const debug = _debug("gamelift:network");
 
 /**
@@ -33,6 +37,11 @@ const debug = _debug("gamelift:network");
  */
 const NOOP = () => {}; // eslint-disable-line @typescript-eslint/no-empty-function
 
+/**
+ * Error class denoting an RPC to the GameLift service failed.
+ *
+ * @internal
+ */
 class ServiceCallFailedError extends Error {
   constructor(message?: string) {
     const prefix = "GameLift service call failed";
@@ -90,7 +99,12 @@ export class Network {
    *
    * Configures & connects the two given sockets for communcation with Gamelift.
    * @internal
-   * @param inSocket
+   * @param socket - [Socket.io client] socket object for communicating with the
+   * GameLift service.
+   * @param handler - Reference to the event handler for various events sent from the
+   * GameLift service.
+   *
+   * [Socket.io client]: https://socket.io/docs/v3/client-api/#Socket
    */
   public constructor(socket: SocketIOClient.Socket, handler: HandlerFunctions) {
     this.socket = socket;
@@ -103,7 +117,7 @@ export class Network {
    * Connect to the Gamelift service.
    *
    * @internal
-   * @param socket
+   * @param socket - Socket.io client socket to connect to the GameLift service.
    */
   public async performConnect(socket: SocketIOClient.Socket): Promise<void> {
     socket.connect();
@@ -136,11 +150,12 @@ export class Network {
   /**
    * Attach event handlers to the given socket.io client socket object.
    *
-   * These handlers include both socket.io-specific events and the events used by
+   * These handlers include both socket.io specific events and the events used by
    *   Gamelift
    * @internal
+   * @param socket - [Socket.io client] socket object
    *
-   * @param socket
+   * [Socket.io client]: https://socket.io/docs/v3/client-api/#Socket
    */
   private configureClient(socket: SocketIOClient.Socket): void {
     socket.on("disconnect", this.onClose.bind(this, socket) as () => void);
@@ -154,7 +169,8 @@ export class Network {
    * Attach the event handlers to the given socket.io client object.
    *
    * @internal
-   * @param socket
+   * @param socket - [Socket.io client] socket object for communicating with the
+   * GameLift service.
    */
   private setupClientHandlers(socket: SocketIOClient.Socket): void {
     socket.on("StartGameSession", this.onStartGameSession);
@@ -168,7 +184,8 @@ export class Network {
    * Removes all event listeners from the socket object.
    *
    * @internal
-   * @param socket
+   * @param socket - [Socket.io client] socket object for communicating with the
+   * GameLift service.
    */
   private onClose = (socket: SocketIOClient.Socket): void => {
     debug("socket disconnected");
@@ -182,9 +199,9 @@ export class Network {
    * handler.
    *
    * @internal
-   * @param data Raw data received from the socket.io client.
-   * @param ack ACK function for alerting the GameLift service whether creation was
-   *   successful.
+   * @param data - Raw data received from the socket.io client.
+   * @param ack - ACK function for alerting the GameLift service whether creation was
+   * successful.
    */
   private onStartGameSession = (data: string, ack?: Ack): void => {
     debug("socket received 'OnStartGameSession' event");
@@ -206,9 +223,9 @@ export class Network {
    * user-defined handler.
    *
    * @internal
-   * @param _name Unused name parameter.
-   * @param data Raw data received from the socket.io client.
-   * @param ack ACK function for alerting the GameLift service whether creation was
+   * @param _name - Unused name parameter.
+   * @param data - Raw data received from the socket.io client.
+   * @param ack - ACK function for alerting the GameLift service whether creation was
    *   successful.
    */
   private onUpdateGameSession = (
@@ -231,7 +248,7 @@ export class Network {
    * calling the handler.
    *
    * @internal
-   * @param data Raw data received from the socket.io client.
+   * @param data - Raw data received from the socket.io client.
    */
   private onTerminateProcess = (data: string): void => {
     let terminateProcessMessage: TerminateProcess = null;
@@ -259,7 +276,7 @@ export class Network {
    * Send the given health status to the GameLift service.
    *
    * @internal
-   * @param healthy
+   * @param healthy - Boolean for healthy or not.
    */
   public async reportHealth(healthy: boolean): Promise<void> {
     const reportHealthMessage = new ReportHealth();
@@ -276,9 +293,9 @@ export class Network {
    * a game session.
    *
    * @internal
-   * @param port Port number that informs the GameLift service which port it should be
-   *   telling clients to connect to.
-   * @param logParameters Log parameter object that allows the developer to determine
+   * @param port - Port number that informs the GameLift service which port it should
+   * be telling clients to connect to.
+   * @param logParameters - Log parameter object that allows the developer to determine
    *   which files the GameLift service preserves after the process has been destroyed.
    */
   public async processReady(
@@ -302,7 +319,6 @@ export class Network {
    * Notifies the GameLift service that the process is shutting down.
    *
    * @internal
-   * @param gameSessionId
    */
   public async processEnding(): Promise<void> {
     const processEndingMessage = new ProcessEnding();
@@ -379,8 +395,10 @@ export class Network {
    * their spot is open for new players.
    *
    * @internal
-   * @param playerSessionId
-   * @param gameSessionId
+   * @param playerSessionId - Identifier for the player session to remove from the game
+   * session.
+   * @param gameSessionId - Identifier for the particular game session that the player
+   * session is being removed from.
    */
   public async removePlayerSession(
     playerSessionId: string,
@@ -404,7 +422,7 @@ export class Network {
    * @internal
    * @param request - [DescribePlayerSessionsRequest] to send to the GameLift service.
    *
-   * @return Filled-out response message from GameLift service.
+   * @returns Filled-out response message from GameLift service.
    *
    * [DescribePlayerSessionsRequest]: https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-datatypes.html
    */
@@ -447,9 +465,48 @@ export class Network {
   }
 
   /**
+   * Send the given
+   * [`BackfillMatchmakingRequest`](https://docs.kontest.io/gamelift-pb/latest/classes/backfillmatchmakingrequest.html)
+   * to the GameLift service.
+   *
+   * @param request - `BackfillMatchmakingRequest` that notifies the GameLift service
+   * to find more players for the match.
+   * @returns [`BackfillMatchmakingResponse`] message with the ticket ID for the request.
+   *
+   * [`BackfillMatchmakingResponse`]: https://docs.kontest.io/gamelift-pb/latest/classes/backfillmatchmakingresponse.html
+   */
+  public async backfillMatchmaking(
+    request: BackfillMatchmakingRequest
+  ): Promise<BackfillMatchmakingResponse> {
+    const response = await this.emit<BackfillMatchmakingResponse>(
+      BackfillMatchmakingRequest.encode(request),
+      BackfillMatchmakingRequest.$type,
+      BackfillMatchmakingResponse
+    );
+
+    return response;
+  }
+
+  /**
+   * Instruct the GameLift service to stop matchmaking in the ticket given by the
+   * request.
+   *
+   * @param request - [`StopMatchmakingRequest`] that identifies the matchmaking
+   * request to stop.
+   *
+   * [`StopMatchmakingRequest`]: https://docs.kontest.io/gamelift-pb/latest/classes/stopmatchmakingrequest.html
+   */
+  public async stopMatchmaking(request: StopMatchmakingRequest): Promise<void> {
+    await this.emit(
+      StopMatchmakingRequest.encode(request),
+      StopMatchmakingRequest.$type
+    );
+  }
+
+  /**
    * Request the location of the files for creating a TLS secured server.
    *
-   * @return Object with the properties for setting up a TLS secured server.
+   * @returns Object with the properties for setting up a TLS secured server.
    */
   public async getInstanceCertificate(): Promise<
     GetInstanceCertificateResponse
@@ -467,8 +524,10 @@ export class Network {
    * Use the socket to the message to the GameLift service.
    *
    * @internal
-   * @param eventName Name of the event that's being emitted.
-   * @param message Procotol Buffer object that's serialized and sent as data.
+   * @param eventName - Name of the event that's being emitted.
+   * @param message - Procotol Buffer object that's serialized and sent as data.
+   * @param responseMessage - Optional parameter that determines how to deserialize
+   * the response, if applicable.
    */
   // eslint-disable-next-line @typescript-eslint/ban-types
   public async emit<T extends Message<T> = Message<object>>(
@@ -547,9 +606,18 @@ export class Network {
     data: string
   ): T {
     let result: Message<T> = null;
+
     try {
       result = message.fromObject(JSON.parse(data));
     } catch (error) {
+      // Special case. The response received from GameLift is just the ticket ID
+      // without JSON object.
+      if (message === BackfillMatchmakingResponse) {
+        return message.fromObject({
+          ticketId: data,
+        }) as T;
+      }
+
       debug(
         `error occurred while attempting to parse '${message.$type.name}' event message`
       );

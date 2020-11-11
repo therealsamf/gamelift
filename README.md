@@ -1,2 +1,2 @@
-gamelift.io
+gamelift
 ===========

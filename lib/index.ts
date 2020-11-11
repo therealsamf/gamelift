@@ -4,9 +4,12 @@
 
 import _debug from "debug";
 import {
+  BackfillMatchmakingRequest,
+  BackfillMatchmakingResponse,
   DescribePlayerSessionsRequest,
   DescribePlayerSessionsResponse,
   GetInstanceCertificateResponse,
+  StopMatchmakingRequest,
 } from "@kontest/gamelift-pb";
 
 import { NotInitializedError, ProcessNotReadyError } from "./exceptions";
@@ -27,7 +30,7 @@ const debug = _debug("gamelift:index");
  * reserved a player slot in the game session. Once validated, GameLift changes the
  * status of the player slot from RESERVED to ACTIVE.
  *
- * @param playerSessionId Unique ID issued by the Amazon GameLift service in response
+ * @param playerSessionId - Unique ID issued by the Amazon GameLift service in response
  *   to a call to the AWS SDK Amazon GameLift API action
  *   [CreatePlayerSession]. The game client references this ID when connecting to the
  *   server process.
@@ -72,9 +75,9 @@ export async function activateGameSession(): Promise<void> {
  * sessions in a game session, or for all player sessions associated with a
  * single player ID.
  *
- * @param request Request that details what results to query on.
+ * @param request - Request that details what results to query on.
  *
- * @return Response object from the GameLift service.
+ * @returns Response object from the GameLift service.
  */
 export async function describePlayerSessions(
   request: DescribePlayerSessionsRequest
@@ -102,7 +105,7 @@ export async function describePlayerSessions(
  * The identifier is returned in ARN format:
  * `arn:aws:gamelift:<region>::gamesession/fleet-<fleet ID>/<ID string>`.
  *
- * @return Current game session ID.
+ * @returns Current game session ID.
  */
 export function getGameSessionId(): string {
   debug("retrieving current game session ID");
@@ -130,7 +133,7 @@ export function getGameSessionId(): string {
  * establish a secure connection with a game client and to encrypt
  * client/server communication.
  *
- * @return Object with the properties for setting up a TLS secured server.
+ * @returns Object with the properties for setting up a TLS secured server.
  */
 export async function getInstanceCertificate(): Promise<
   GetInstanceCertificateResponse
@@ -224,7 +227,8 @@ export async function processEnding(): Promise<void> {
  * completing any setup tasks required before the server process can host a game
  * session.
  *
- * @param processParameters
+ * @param processParameters - Port number & function callbacks in response to GameLift
+ * events communicated to the application from the GameLift service.
  */
 export async function processReady(
   processParameters: ProcessParameters
@@ -244,6 +248,9 @@ export async function processReady(
  *
  * In response, GameLift changes the player slot to available, which allows it
  * to be assigned to a new player.
+ *
+ * @param playerSessionId - Identifier of the player session to remove/disassociate
+ * from the current game session.
  */
 export async function removePlayerSession(
   playerSessionId: string
@@ -267,20 +274,45 @@ export async function removePlayerSession(
  * Sends a request to find new players for open slots in a game session created
  * with FlexMatch.
  *
- * See also the AWS SDK action [StartMatchBackfill()]. With this action, match
- * backfill requests can be initiated by a game server process that is hosting
- * the game session. Learn more about the FlexMatch backfill feature in
- * [Backfill Existing Games with FlexMatch].
+ * See also the AWS SDK action
+ * [StartMatchBackfill()](https://docs.aws.amazon.com/gamelift/latest/apireference/API_StartMatchBackfill.html).
+ * With this action, match backfill requests can be initiated by a game server process
+ * that is hosting the game session. Learn more about the FlexMatch backfill feature in
+ * [Backfill Existing Games with FlexMatch](https://docs.aws.amazon.com/gamelift/latest/developerguide/match-backfill.html).
  *
  * This action is asynchronous. If new players are successfully matched, the
  * GameLift service delivers updated matchmaker data using the callback
  * function
  * {@link ProcessParameters.onUpdateGameSession | `onUpdateGameSession()`}.
  *
- * [StartMatchBackfill()]: https://docs.aws.amazon.com/gamelift/latest/apireference/API_StartMatchBackfill.html
- * [Backfill existing Games with FlexMatch]: https://docs.aws.amazon.com/gamelift/latest/developerguide/match-backfill.html
+ * @param request - [`BackfillMatchmakingRequest`](https://docs.kontest.io/gamelift-pb/latest/classes/backfillmatchmakingrequest.html)
+ * message that determines how/what gets backfilled with players. The message
+ * communicates the following information:
+ *  * A ticket ID to assign to the backfill request. This information is optional; if
+ *    no ID is provided, GameLift will autogenerate one.
+ *  * The matchmaker to send the request to. The full configuration ARN is required.
+ *    This value can be acquired from the game session's matchmaker data.
+ *  * The ID of the game session that is being backfilled. This be found with
+ *    {@link getGameSessionId | `getGameSessionId()`}.
+ *  * Available matchmaking data for the game session's current players.
+ *
+ * @returns - [`BackfillMatchmakingResponse`](https://docs.kontest.io/gamelift-pb/latest/classes/backfillmatchmakingresponse.html)
+ * message with the ticket ID of the request. This ticket ID can be used in a call to
+ * [DescribeMatchmaking()](https://docs.aws.amazon.com/gamelift/latest/apireference/API_DescribeMatchmaking.html)
+ * or to {@link stopMatchBackfill | stop the backfill matchmaking request}.
  */
-export function startMatchBackfill() {}
+export async function startMatchBackfill(
+  request: BackfillMatchmakingRequest
+): Promise<BackfillMatchmakingResponse> {
+  debug("sending 'StartMatchBackfill' request");
+  const serverState = GameLiftCommonState.getInstance() as GameLiftServerState;
+
+  if (!serverState) {
+    throw new NotInitializedError();
+  }
+
+  return await serverState.backfillMatchmaking(request);
+}
 
 /**
  * Cancels an active match backfill request that was created with
@@ -289,10 +321,27 @@ export function startMatchBackfill() {}
  * See also the AWS SDK action [`StopMatchmaking()`]. Learn more about the
  * FlexMatch backfill feature in [Backfill Existing Games with FlexMatch].
  *
+ * @param request - [`StopMatchmakingRequest`] message that identifies the matchmaking
+ * request to stop. See also [StopMatchBackfillRequest] from the AWS GameLift SDK.
+ *
  * [`StopMatchmaking()`]: https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-actions.html#integration-server-sdk-cpp-ref-stopmatchbackfill
  * [Backfill Existing Games with FlexMatch]: https://docs.aws.amazon.com/gamelift/latest/developerguide/match-backfill.html
+ * [`StopMatchmakingRequest`]: https://docs.kontest.io/gamelift-pb/latest/classes/stopmatchmakingrequest.html
+ * [StopMatchBackfillRequest]: https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-server-sdk-cpp-ref-datatypes.html#integration-server-sdk-cpp-ref-dataypes-stopmatchbackfillrequest
  */
-export function stopMatchBackfill() {}
+export async function stopMatchBackfill(
+  request: StopMatchmakingRequest
+): Promise<void> {
+  debug(`sending 'StopMatchmakingRequest' for ticket: '${request.ticketId}'`);
+
+  const serverState = GameLiftCommonState.getInstance() as GameLiftServerState;
+
+  if (!serverState) {
+    throw new NotInitializedError();
+  }
+
+  return await serverState.stopMatchmaking(request);
+}
 
 /**
  * Notifies the GameLift service that the server process has shut down the
@@ -300,11 +349,12 @@ export function stopMatchBackfill() {}
  *
  * Since each server process hosts only one game session at a time, there's no
  * need to specify which session. This action should be called at the end of
- * the game session shutdown process. After calling this action, the server
- * process can call {@link processReady | `processReady()`} to signal its
- * availability to host a new game session. Alternatively it can call
- * {@link processEnding | `processEnding()`} to shut down the server process
- * and terminate the instance.
+ * the game session shutdown process.
+ *
+ * After calling this action, the server process can call
+ * {@link processReady | `processReady()`} to signal its availability to host a new
+ * game session. Alternatively, it can call {@link processEnding | `processEnding()`}
+ * to shut down the server process and terminate the instance.
  */
 export async function terminateGameSession(): Promise<void> {
   debug("terminating game session");
