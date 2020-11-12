@@ -5,11 +5,12 @@
  * SDK.
  */
 
+/* eslint-disable tsdoc/syntax */
+
 import * as childProcess from "child_process";
 import * as path from "path";
 
 import { GameLiftClient } from "@aws-sdk/client-gamelift-node/GameLiftClient";
-import { _UnmarshalledGameSession } from "@aws-sdk/client-gamelift-node/types/_GameSession";
 import {
   CreateGameSessionCommand,
   CreateGameSessionOutput,
@@ -24,6 +25,7 @@ import {
   StopMatchmakingRequest,
 } from "@kontest/gamelift-pb";
 import { assert, use } from "chai";
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 use(require("chai-as-promised"));
 import sinon from "sinon";
 
@@ -56,7 +58,7 @@ describe("gamelift", function (): void {
    */
   before((done: (error?: Error) => void): void => {
     // Takes a bit for the GameLiftLocal server to start
-    this.timeout(3000);
+    this.timeout(5000);
 
     gameLiftLocalProcess = childProcess.spawn("java", [
       "-jar",
@@ -118,6 +120,7 @@ describe("gamelift", function (): void {
 
       // instance is a private member variable of GameLiftCommonState so ignore the
       // TypeScript complaint.
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       GameLiftCommonState.instance = undefined;
     }
@@ -143,7 +146,6 @@ describe("gamelift", function (): void {
         "Alerts to the GameLift service that the process is ready to receive a game session",
       searchString: "onProcessReady received",
       gameLiftLocalProcess: () => gameLiftLocalProcess,
-      timeout: 3000,
       _before: async (): Promise<void> => {
         await gamelift.initSdk();
 
@@ -155,7 +157,7 @@ describe("gamelift", function (): void {
         );
         await gamelift.processReady({
           port: 2020,
-          onStartGameSession: () => {},
+          onStartGameSession: () => {}, // eslint-disable-line @typescript-eslint/no-empty-function
         });
       },
     });
@@ -172,7 +174,7 @@ describe("gamelift", function (): void {
 
       await gamelift.processReady({
         port: 2020,
-        onStartGameSession: () => {},
+        onStartGameSession: () => {}, // eslint-disable-line @typescript-eslint/no-empty-function
         onHealthCheck,
       });
 
@@ -408,7 +410,7 @@ describe("gamelift", function (): void {
           .then(createGameSession);
       });
 
-      let gameSessionId: string =
+      const gameSessionId: string =
         // @ts-ignore
         GameLiftServerState.getInstance().gameSessionId;
 
@@ -728,7 +730,6 @@ describe("gamelift", function (): void {
         "Correctly informs the GameLift service that the process is ending",
       searchString: "onProcessEnding received",
       gameLiftLocalProcess: () => gameLiftLocalProcess,
-      timeout: 3000,
       _before: async (): Promise<void> => {
         await gamelift.initSdk();
 
@@ -928,8 +929,8 @@ function createTestForGameLiftLocal({
   it(title, async function (): Promise<void> {
     let boundEventHandler: (data: Buffer) => void = null;
     const gameLiftLocalProcess = _gameLiftLocalProcess();
-    // Default timeout to 3 seconds
-    const timeout = _timeout || 3000;
+    // Default timeout to 8 seconds
+    const timeout = _timeout || 8000;
 
     this.timeout(timeout);
 
