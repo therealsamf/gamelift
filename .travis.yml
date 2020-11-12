@@ -17,6 +17,8 @@ jobs:
       script:
         - npm run lint
         - npm run test
+        # Sleep 30 seconds so that the 5757 port becomes attachable again
+        - sleep 30
         - npm run coverage
         - npm run coverage:report
 
@@ -54,7 +56,7 @@ jobs:
         # Install git
         - sudo apt-get install -y git
         # Put down credential files
-        - echo $SSH_PRIVATE_KEY | base64 --decode | openssl aes-256-cbc -K $encrypted_2fc69c4133c3_key -iv $encrypted_2fc69c4133c3_iv -out $HOME/.ssh/id_rsa -d
+        - echo $SSH_PRIVATE_KEY | base64 --decode | openssl aes-256-cbc -K $encrypted_614bbe20f5f3_key -iv $encrypted_614bbe20f5f3_iv -out $HOME/.ssh/id_rsa -d
         - chmod 600 $HOME/.ssh/id_rsa
 
       addons:

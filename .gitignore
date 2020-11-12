@@ -128,3 +128,6 @@ docs/*
 # GameLift SDK zips & sources
 GameLift_*/
 GameLift_*.zip
+
+# Terraform secrets
+*.tfvars

@@ -39,6 +39,9 @@ import {
 } from "../lib/exceptions";
 
 describe("gamelift", function (): void {
+  // Give all the tests a longer timeout
+  this.timeout(8000);
+
   /**
    * @type childProcess.ChildProcess
    */

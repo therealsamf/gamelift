@@ -17,7 +17,8 @@
   "keywords": [
     "nodejs",
     "aws",
-    "gamelift"
+    "gamelift",
+    "kontest"
   ],
   "files": [
     "dist/*.js",
@@ -60,5 +61,8 @@
     "debug": "^4.1.1",
     "protobufjs": "^6.10.1",
     "socket.io-client": "^2.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
