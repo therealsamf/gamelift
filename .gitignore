@@ -124,3 +124,7 @@ docs/*
 
 # Locally generated PEM-encoded TLS files
 *.pem
+
+# GameLift SDK zips & sources
+GameLift_*/
+GameLift_*.zip

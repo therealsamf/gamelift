@@ -57,7 +57,7 @@ describe("gamelift", function (): void {
 
     gameLiftLocalProcess = childProcess.spawn("java", [
       "-jar",
-      "/usr/local/src/GameLift_09_17_2020/GameLiftLocal-1.0.5/GameLiftLocal.jar",
+      "GameLift_11_11_2020/GameLiftLocal-1.0.5/GameLiftLocal.jar",
     ]);
 
     gameLiftLocalProcess.once("error", done);
@@ -586,7 +586,6 @@ describe("gamelift", function (): void {
           matchmakingConfigurationArn:
             "arn:aws:gamelift:us-west-2:123456789012:matchmakingconfiguration/SampleConfiguration",
           players: [
-            // @ts-ignore
             {
               playerId: "player-1",
               playerAttributes: {
