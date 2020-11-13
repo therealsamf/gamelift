@@ -4,6 +4,7 @@
   "description": "NodeJS bindings for AWS Gamelift server SDK",
   "main": "dist/index.js",
   "scripts": {
+    "clean": "rimraf dist",
     "build": "rimraf dist && tsc",
     "prepare": "npm run build",
     "prettier": "prettier --write lib/",

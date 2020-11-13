@@ -40,7 +40,7 @@ import {
   ProcessNotReadyError,
 } from "../lib/exceptions";
 
-describe("gamelift", function (): void {
+describe("gamelift #integration", function (): void {
   // Give all the tests a longer timeout
   this.timeout(8000);
 

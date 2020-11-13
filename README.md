@@ -83,7 +83,7 @@ $ yarn install
 
 This project utilizes [Mocha.js](https://mochajs.org/) as its test runner. Simply run `npm test`.
 
-This will run the `pretest` script first which should build the C++ addon used in the tests with `cmake-js`. `mocha` will then run the test suite defined in TypeScript files found in *tests* directory.
+The integration tests (in [*tests/test-index.ts*](https://github.com/therealsamf/gamelift/blob/362758d2a118d53d4847f680aa4679b4ade6838a/tests/test-index.ts)) will start a GameLiftLocal subprocess which binds to several ports. It takes a minute or two for these ports to become available again so running the integration tests in quick succession will usually result in the second invocation timing out during the integration test suite's `before` hook. This [Mocha.js hook](https://mochajs.org/#hooks) starts up the GameLiftLocal process using Java and attempts to attach to its ports and will retry when the process exits with EADDRINUSE errors.
 
 ### Linting
 
