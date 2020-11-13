@@ -56,10 +56,11 @@
   "dependencies": {
     "@kontest/gamelift-pb": "^0.1.8",
     "@types/debug": "^4.1.5",
-    "@types/node": "^14.6.0",
-    "debug": "^4.1.1",
+    "@types/node": "^14.14.7",
+    "@types/socket.io-client": "^1.4.34",
+    "debug": "^4.2.0",
     "protobufjs": "^6.10.1",
-    "socket.io-client": "^2.3.0"
+    "socket.io-client": "^2.3.1"
   },
   "publishConfig": {
     "access": "public"

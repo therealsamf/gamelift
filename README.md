@@ -10,25 +10,41 @@ gamelift
 
 [API Documentation](https://docs.kontest.io/gamelift/latest/index.html)
 
+# Installation
+
+```terminal
+npm install @kontest/gamelift
+```
+
+Or if you prefer [`yarn`](https://classic.yarnpkg.com/en/):
+
+```terminal
+yarn add @kontest/gamelift
+```
+
 # Getting Started
 
-Coming soon...
+A barebones example of how to use this library is coming soon.
 
 Also coming soon is an example of how to create [GameLift builds](https://docs.aws.amazon.com/gamelift/latest/developerguide/gamelift-build-cli-uploading.html) that uses this library and Node.js.
+
+# Use case
+
+This library enables a Node.js process to act as a GameLift compatible backend server. Node.js is not a popular choice to implement realtime multiplayer servers because of the performance requirements of those games. However, it's still a valid use case for many multiplayer games and this library allows developers whom are more familiar with Node.js and web development the ability to use a managed service like GameLift without having to develop their backend server in C++ or Unity/Unreal Engine.
 
 # Development
 
 This library provides the interface for using [gamelift-pb](../gamelift-pb/) via [socket.io](https://socket.io/) in communication with the GameLift service.
 
-## Motivation
+## Alternatives
 
-There is a [project](https://github.com/dplusic/GameLift-Nodejs-ServerSDK) that accomplishes the same goal that this one does. It's written in TypeScript and shares many similarities.
+There is a [project](https://github.com/dplusic/GameLift-Nodejs-ServerSDK) that accomplishes the same goal that this one does. It is written in TypeScript and shares many similarities.
 
-However it relies on a handwritten [.proto](https://developers.google.com/protocol-buffers/docs/reference/proto3-spec) file which didn't contain the level of control and documentation that I preferred.
+However it relies on a handwritten [.proto](https://developers.google.com/protocol-buffers/docs/reference/proto3-spec) file which did not contain the level of control and documentation that I preferred.
 
-It also is a closer emulation of the original SDK from C++/C# whereas with this library I took some liberties with making the code more like a native TypeScript/JavaScript project.
+It also is a closer emulation of the original SDK from C++/C# whereas with this library I took liberties with making the code more like a native TypeScript/JavaScript project.
 
-Finally, this project is heavily documented and doesn't rely on AWS's docs. This is a necessity when learning how to deploy and write code for a multiplayer game that utilizes a service like AWS GameLift. And this being a TypeScript project, the targeted developer audience who will find this library useful are those who'd like to write a multiplayer game that can deploy at the scale of AWS GameLift without having to dive into writing a C++ server or implement their server code using one of the plugins for Unity or Unreal Engine.
+Finally, this project is heavily documented and doesn't rely solely on AWS's docs.
 
 ## Contributing
 
@@ -36,7 +52,7 @@ The following guide describes how to get setup for testing and working on the ga
 
 **Requirements**
 
-In order to successfully fix bugs or add new features to this library you'll need to be able to run the test suite. The integration tests rely on [GameLiftLocal](https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-testing-local.html) and require that the JAR file be located at a certain filepath relative to the project's directory.
+In order to successfully fix bugs or add new features to this library you will need to be able to run the test suite. The integration tests rely on [GameLiftLocal](https://docs.aws.amazon.com/gamelift/latest/developerguide/integration-testing-local.html) and require that the JAR file be located at a certain filepath relative to the project's directory.
 
 Currently the GameLift SDK version is [2020-11-11](https://docs.aws.amazon.com/gamelift/latest/developerguide/release-notes.html#release-notes-11112020) and the integration tests run the JAR file at the following path:
 
@@ -82,4 +98,3 @@ This project utilizes [`eslint`](https://eslint.org/) for code quality. The scri
 To generate the user-visible documentation run `npm run docs`. The generated docs are stripped down and only include documentation for the public API.
 
 To generate more developer-friendly documenation you can run `npm run docs:internal`. The previously mentioned stripped internal members are included in the output.
-

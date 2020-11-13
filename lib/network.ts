@@ -189,7 +189,7 @@ export class Network {
    */
   private onClose = (socket: SocketIOClient.Socket): void => {
     debug("socket disconnected");
-    socket.off();
+    socket.removeAllListeners();
   };
 
   /**
