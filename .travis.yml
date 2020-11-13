@@ -18,7 +18,7 @@ jobs:
         - npm run lint
         - npm run test
         # Sleep 30 seconds so that the 5757 port becomes attachable again
-        - sleep 30
+        - sleep 90
         - npm run coverage
         - npm run coverage:report
 
