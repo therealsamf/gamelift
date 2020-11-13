@@ -42,7 +42,7 @@ import {
 
 describe("gamelift #integration", function (): void {
   // Give all the tests a longer timeout
-  this.timeout(8000);
+  this.timeout(15 * 1000);
 
   /**
    * @type childProcess.ChildProcess
