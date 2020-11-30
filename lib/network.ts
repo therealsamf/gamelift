@@ -26,6 +26,7 @@ import {
 } from "@kontest/gamelift-pb";
 import _debug from "debug";
 import { Message, Writer, Type } from "protobufjs";
+import { Socket } from "socket.io-client";
 
 import type { LogParameters } from "./types";
 
@@ -106,7 +107,7 @@ export class Network {
    *
    * [Socket.io client]: https://socket.io/docs/v3/client-api/#Socket
    */
-  public constructor(socket: SocketIOClient.Socket, handler: HandlerFunctions) {
+  public constructor(socket: Socket, handler: HandlerFunctions) {
     this.socket = socket;
     this.handler = handler;
 
@@ -119,13 +120,13 @@ export class Network {
    * @internal
    * @param socket - Socket.io client socket to connect to the GameLift service.
    */
-  public async performConnect(socket: SocketIOClient.Socket): Promise<void> {
-    socket.connect();
+  public async performConnect(socket: Socket): Promise<void> {
 
     await new Promise(
       (resolve: () => void, reject: (error?: Error) => void): void => {
         socket.on("error", reject);
         socket.on("connect_error", reject);
+
 
         socket.once("connect", () => {
           debug(`socket '${socket.id}' connected to GameLift service`);
@@ -134,6 +135,9 @@ export class Network {
           socket.off("connect_handler", reject);
           resolve();
         });
+
+        socket.connect();
+        debug("waiting for 'connect' event");
       }
     );
   }
@@ -157,7 +161,7 @@ export class Network {
    *
    * [Socket.io client]: https://socket.io/docs/v3/client-api/#Socket
    */
-  private configureClient(socket: SocketIOClient.Socket): void {
+  private configureClient(socket: Socket): void {
     socket.on("disconnect", this.onClose.bind(this, socket) as () => void);
 
     socket.io.reconnectionAttempts(Network.RECONNECT_ATTEMPTS);
@@ -172,7 +176,7 @@ export class Network {
    * @param socket - [Socket.io client] socket object for communicating with the
    * GameLift service.
    */
-  private setupClientHandlers(socket: SocketIOClient.Socket): void {
+  private setupClientHandlers(socket: Socket): void {
     socket.on("StartGameSession", this.onStartGameSession);
     socket.on("UpdateGameSession", this.onUpdateGameSession);
     socket.on("TerminateProcess", this.onTerminateProcess);
@@ -187,9 +191,9 @@ export class Network {
    * @param socket - [Socket.io client] socket object for communicating with the
    * GameLift service.
    */
-  private onClose = (socket: SocketIOClient.Socket): void => {
+  private onClose = (socket: Socket): void => {
     debug("socket disconnected");
-    socket.removeAllListeners();
+    socket.off();
   };
 
   /**
@@ -633,5 +637,5 @@ export class Network {
     return result;
   }
 
-  public socket: SocketIOClient.Socket;
+  public socket: Socket;
 }

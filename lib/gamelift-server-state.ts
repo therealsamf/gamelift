@@ -5,7 +5,7 @@
  */
 
 import _debug from "debug";
-import SocketIOClient from "socket.io-client";
+import { Manager } from "socket.io-client";
 import type {
   DescribePlayerSessionsRequest,
   GameSession,
@@ -546,7 +546,7 @@ export class GameLiftServerState extends GameLiftCommonState {
    */
   public async initializeNetworking(): Promise<void> {
     debug("initializing networking");
-    const socket = SocketIOClient(GameLiftServerState.LOCALHOST, {
+    const manager = new Manager(GameLiftServerState.LOCALHOST, {
       autoConnect: false,
       query: {
         pID: process.ppid,
@@ -556,6 +556,7 @@ export class GameLiftServerState extends GameLiftCommonState {
       transports: ["websocket"],
     });
 
+    const socket = manager.socket("/");
     this.networking = new Network(socket, this);
     await this.networking.performConnect(socket);
   }
