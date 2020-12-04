@@ -26,7 +26,6 @@ import {
 } from "@kontest/gamelift-pb";
 import _debug from "debug";
 import { Message, Writer, Type } from "protobufjs";
-import { Socket } from "socket.io-client";
 
 import type { LogParameters } from "./types";
 
@@ -38,12 +37,19 @@ const debug = _debug("gamelift:network");
  */
 const NOOP = () => {}; // eslint-disable-line @typescript-eslint/no-empty-function
 
+/** @hidden */
+const STATUS_ENUM_MAP = {
+  OK: 0,
+  ERROR_400: 1,
+  ERROR_500: 2,
+};
+
 /**
  * Error class denoting an RPC to the GameLift service failed.
  *
  * @internal
  */
-class ServiceCallFailedError extends Error {
+export class ServiceCallFailedError extends Error {
   constructor(message?: string) {
     const prefix = "GameLift service call failed";
     if (!message) super(prefix);
@@ -107,7 +113,7 @@ export class Network {
    *
    * [Socket.io client]: https://socket.io/docs/v3/client-api/#Socket
    */
-  public constructor(socket: Socket, handler: HandlerFunctions) {
+  public constructor(socket: SocketIOClient.Socket, handler: HandlerFunctions) {
     this.socket = socket;
     this.handler = handler;
 
@@ -120,13 +126,11 @@ export class Network {
    * @internal
    * @param socket - Socket.io client socket to connect to the GameLift service.
    */
-  public async performConnect(socket: Socket): Promise<void> {
-
+  public async performConnect(socket: SocketIOClient.Socket): Promise<void> {
     await new Promise(
       (resolve: () => void, reject: (error?: Error) => void): void => {
         socket.on("error", reject);
         socket.on("connect_error", reject);
-
 
         socket.once("connect", () => {
           debug(`socket '${socket.id}' connected to GameLift service`);
@@ -161,7 +165,7 @@ export class Network {
    *
    * [Socket.io client]: https://socket.io/docs/v3/client-api/#Socket
    */
-  private configureClient(socket: Socket): void {
+  private configureClient(socket: SocketIOClient.Socket): void {
     socket.on("disconnect", this.onClose.bind(this, socket) as () => void);
 
     socket.io.reconnectionAttempts(Network.RECONNECT_ATTEMPTS);
@@ -176,7 +180,7 @@ export class Network {
    * @param socket - [Socket.io client] socket object for communicating with the
    * GameLift service.
    */
-  private setupClientHandlers(socket: Socket): void {
+  private setupClientHandlers(socket: SocketIOClient.Socket): void {
     socket.on("StartGameSession", this.onStartGameSession);
     socket.on("UpdateGameSession", this.onUpdateGameSession);
     socket.on("TerminateProcess", this.onTerminateProcess);
@@ -191,9 +195,9 @@ export class Network {
    * @param socket - [Socket.io client] socket object for communicating with the
    * GameLift service.
    */
-  private onClose = (socket: Socket): void => {
+  private onClose = (socket: SocketIOClient.Socket): void => {
     debug("socket disconnected");
-    socket.off();
+    socket.removeAllListeners();
   };
 
   /**
@@ -577,6 +581,9 @@ export class Network {
               // type
               let responseResult: T = null;
               try {
+                debug(
+                  `parsing '${response}' into ${responseMessage.$type.fullName} message`
+                );
                 responseResult = this.parseJsonDataIntoMessage<T>(
                   responseMessage,
                   response
@@ -609,10 +616,9 @@ export class Network {
     message: typeof Message,
     data: string
   ): T {
-    let result: Message<T> = null;
-
+    let dataObject: Record<string, unknown> = null;
     try {
-      result = message.fromObject(JSON.parse(data));
+      dataObject = JSON.parse(data);
     } catch (error) {
       // Special case. The response received from GameLift is just the ticket ID
       // without JSON object.
@@ -622,20 +628,30 @@ export class Network {
         }) as T;
       }
 
-      debug(
-        `error occurred while attempting to parse '${message.$type.name}' event message`
-      );
-      return null;
+      throw error;
     }
 
-    if (!result) {
-      debug(`failed to parse '${message.$type.name}' event message data`);
+    // GameLiftLocal sends the strings for the enum in the JSON responses rather than
+    // the actual enum values
+    if (
+      message === GameLiftResponse &&
+      STATUS_ENUM_MAP[dataObject["status"] as string]
+    ) {
+      dataObject["status"] = STATUS_ENUM_MAP[dataObject["status"] as string];
     }
+
+    const verifyResult = message.verify(dataObject);
+    if (verifyResult !== null) {
+      throw new Error(
+        `Unable to verify ${message.$type.fullName} message: ${verifyResult}`
+      );
+    }
+    const result: Message<T> = message.fromObject(JSON.parse(data));
 
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     return result;
   }
 
-  public socket: Socket;
+  public socket: SocketIOClient.Socket;
 }

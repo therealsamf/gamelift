@@ -13,6 +13,7 @@ import {
 } from "@kontest/gamelift-pb";
 
 import { NotInitializedError, ProcessNotReadyError } from "./exceptions";
+export { ServiceCallFailedError } from "./network";
 import {
   GameLiftServerState,
   GameLiftCommonState,
