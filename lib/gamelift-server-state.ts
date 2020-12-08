@@ -683,7 +683,7 @@ export class GameLiftServerState extends GameLiftCommonState {
    *
    * @internal
    */
-  private onHealthCheck: OnHealthCheckCallback;
+  public onHealthCheck: OnHealthCheckCallback;
 
   /**
    * Internal reference to the

@@ -14,7 +14,7 @@
     "docs:internal": "typedoc",
     "test": "mocha",
     "test:unit": "mocha -g \"unit\"",
-    "coverage": "nyc mocha --require source-map-support/register",
+    "coverage": "nyc mocha -g \"unit\" --require source-map-support/register",
     "coverage:report": "nyc report --reporter=lcov"
   },
   "keywords": [

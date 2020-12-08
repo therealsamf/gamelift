@@ -16,14 +16,12 @@ jobs:
 
       script:
         - npm run lint
-        # - npm run test
-        # Sleep 30 seconds so that the 5757 port becomes attachable again
-        # - sleep 90
-        # - npm run coverage
-        # - npm run coverage:report
+        - npm run test:unit
+        - npm run coverage
+        - npm run coverage:report
 
-      # after_success:
-        # - codecov
+      after_success:
+        - codecov
 
       deploy:
         provider: npm
