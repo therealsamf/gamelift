@@ -30,7 +30,7 @@ Also coming soon is an example of how to create [GameLift builds](https://docs.a
 
 # Use case
 
-This library enables a Node.js process to act as a GameLift compatible backend server. Node.js is not a popular choice to implement realtime multiplayer servers because of the performance requirements of those games. However, it's still a valid use case for many multiplayer games and this library allows developers whom are more familiar with Node.js and web development the ability to use a managed service like GameLift without having to develop their backend server in C++ or Unity/Unreal Engine.
+This library enables a Node.js process to act as a GameLift compatible backend game server. Node.js is not a popular choice to implement realtime multiplayer servers because of the performance requirements of those games. However, it's still a valid use case for many multiplayer games and this library allows developers whom are more familiar with Node.js and web development the ability to use a managed service like GameLift without having to develop their backend server in C++ or Unity/Unreal Engine.
 
 # Development
 
@@ -40,11 +40,11 @@ This library provides the interface for using [gamelift-pb](../gamelift-pb/) via
 
 There is a [project](https://github.com/dplusic/GameLift-Nodejs-ServerSDK) that accomplishes the same goal that this one does. It is written in TypeScript and shares many similarities.
 
-However it relies on a handwritten [.proto](https://developers.google.com/protocol-buffers/docs/reference/proto3-spec) file which did not contain the level of control and documentation that I preferred.
+However, it relies on a handwritten [.proto](https://developers.google.com/protocol-buffers/docs/reference/proto3-spec) file which did not contain the level of control and documentation that I preferred.
 
-It also is a closer emulation of the original SDK from C++/C# whereas with this library I took liberties with making the code more like a native TypeScript/JavaScript project.
+It also is a closer emulation of the original SDK from C++/C# whereas with this library I took liberties in making the code more like a native TypeScript/JavaScript project.
 
-Finally, this project is heavily documented and doesn't rely solely on AWS's docs.
+This project is also heavily documented and doesn't rely solely on AWS's docs.
 
 ## Contributing
 
