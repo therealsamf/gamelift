@@ -35,7 +35,7 @@ const debug = _debug("gamelift:network");
 /**
  * @hidden
  */
-const NOOP = () => {}; // eslint-disable-line @typescript-eslint/no-empty-function
+export const NOOP = (): void => {}; // eslint-disable-line @typescript-eslint/no-empty-function
 
 /** @hidden */
 const STATUS_ENUM_MAP = {
