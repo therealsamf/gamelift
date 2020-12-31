@@ -63,7 +63,7 @@
   },
   "dependencies": {
     "@kontest/gamelift-pb": "^0.1.8",
-    "debug": "^4.3.1",
+    "debug": "^4.3.2",
     "protobufjs": "^6.10.2",
     "socket.io-client": "^2.3.1"
   },
