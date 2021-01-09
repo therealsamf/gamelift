@@ -65,7 +65,7 @@
     "@kontest/gamelift-pb": "^0.1.8",
     "debug": "^4.3.1",
     "protobufjs": "^6.10.2",
-    "socket.io-client": "^2.3.1"
+    "socket.io-client": "^3.0.0"
   },
   "publishConfig": {
     "access": "public"
